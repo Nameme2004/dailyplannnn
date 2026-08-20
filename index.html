@@ -1,0 +1,4313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>每日计划</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --ink: #20242c;
+      --muted: #68707d;
+      --line: #dfe4ea;
+      --accent: #0f766e;
+      --accent-deep: #0b5d57;
+      --accent-soft: #e0f2ef;
+      --warm: #b45309;
+      --warm-soft: #fdf0e0;
+      --danger: #b42318;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    input, textarea { font: inherit; color: inherit; }
+    svg { display: block; flex: none; }
+    .hidden { display: none !important; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(255,255,255,0.96);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .brand-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      background: var(--accent-soft);
+      color: var(--accent-deep);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .main-nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #eef1f4;
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .nav-btn {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 7px 14px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    .nav-btn.active {
+      background: #fff;
+      color: var(--ink);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .date-chip {
+      padding: 7px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      transition: 0.15s;
+    }
+    .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .text-btn {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      padding: 7px 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      transition: 0.15s;
+    }
+    .text-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .text-btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .text-btn.primary:hover {
+      background: var(--accent-deep);
+      border-color: var(--accent-deep);
+      color: #fff;
+    }
+    .text-btn.full { width: 100%; justify-content: center; }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 26px 20px 60px;
+    }
+    .date-band { margin: 4px 0 20px; }
+    .date-band h1 { font-size: 28px; margin: 0 0 4px; }
+    .date-band-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .date-band p { margin: 0; color: var(--muted); font-size: 14px; }
+    .date-band-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .status-capsule {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--ink);
+      padding: 7px 12px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .status-capsule:hover { border-color: var(--accent); color: var(--accent); }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 18px;
+      align-items: start;
+    }
+    .layout-left, .side { display: grid; gap: 18px; min-width: 0; }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      flex-wrap: wrap;
+    }
+    .panel-head h2 {
+      font-size: 16px;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-head h2 svg { color: var(--accent); }
+    .panel-body { padding: 14px 16px; }
+    .panel-foot { padding: 12px 16px 14px; border-top: 1px solid var(--line); }
+    .head-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .week-label, .count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+    .blocks { padding: 4px 0; }
+    .empty-blocks { margin: 0; padding: 22px 16px; color: var(--muted); font-size: 14px; text-align: center; }
+
+    .block-row {
+      display: grid;
+      grid-template-columns: 96px 16px 96px minmax(0,1fr) 70px 34px;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+    }
+    .block-row + .block-row { border-top: 1px dashed var(--line); }
+    .block-row:hover { background: #fafbfc; }
+
+    .time-input, .text-input {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--ink);
+      padding: 7px 8px;
+      outline: none;
+      transition: 0.15s;
+    }
+    .text-input:hover, .time-input:hover { border-color: var(--line); }
+    .text-input:focus, .time-input:focus { border-color: var(--accent); background: #fff; }
+    .time-input { text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .time-input::-webkit-calendar-picker-indicator { opacity: 0.55; }
+    .time-dash { color: var(--muted); text-align: center; font-size: 13px; }
+    .color-input { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+    input::placeholder { color: #9aa3ad; }
+
+    .goals, .routines { padding: 6px 0; }
+    .goal-row {
+      display: grid;
+      grid-template-columns: 22px 30px minmax(0,1fr) 34px;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+    }
+    .drag-handle { color: var(--muted); font-size: 16px; line-height:1; cursor: grab; touch-action:none; user-select:none; text-align:center; }
+    .goal-check {
+      width: 30px; height: 30px; border:0; border-radius:50%; background:transparent; font-size:20px; line-height:1; padding:0;
+      display:inline-flex; align-items:center; justify-content:center; cursor:grab; touch-action:none; transition:transform 0.15s;
+    }
+    .goal-check:hover { transform:scale(1.14); }
+    .goals.drag-active .goal-row { cursor: grabbing; }
+    .goal-row.done .goal-input { color: var(--muted); text-decoration: line-through; }
+
+    .routine-row {
+      display: grid;
+      grid-template-columns: 22px 28px minmax(0,1fr) 34px;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 16px;
+    }
+    .panel.collapsed .goals, .panel.collapsed .routines, .panel.collapsed .panel-foot { display: none; }
+
+    .check {
+      width: 24px; height: 24px; border:1px solid var(--line); border-radius:50%; background:#fff; color:transparent;
+      display:inline-flex; align-items:center; justify-content:center; padding:0; transition:0.15s;
+    }
+    .check:hover { border-color: var(--accent); }
+    .check[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color:#fff; }
+    .routine-row.done .routine-input { color: var(--muted); text-decoration: line-through; }
+    .delete-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+    .sticky-panel {
+      position: relative;
+      background: #fff8d6;
+      border-color: #ead98a;
+      box-shadow: 2px 3px 0 rgba(0,0,0,0.05);
+    }
+    .sticky-panel::after {
+      content: "";
+      position: absolute;
+      top:0; right:0;
+      width:16px; height:16px;
+      background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.09) 50%);
+      border-bottom-left-radius: 4px;
+    }
+    .sticky-panel .panel-head { border-bottom-color: #e3d27f; }
+    .sticky-panel .panel-head h2 svg { color: #b07d10; }
+    .sticky-panel .block-row:hover { background: rgba(255,255,255,0.45); }
+    .sticky-panel .text-btn, .sticky-panel .icon-btn { background: #fffdf0; border-color: #e0cf7d; }
+    .sticky-panel .text-btn:hover, .sticky-panel .icon-btn:hover { border-color: #b07d10; color: #8a5d06; }
+    .sticky-panel .time-input:focus, .sticky-panel .text-input:focus { background: #fffdf0; }
+    .sticky-panel.collapsed .blocks { display: none; }
+
+    .zone-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    .zone-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+    .zone-legend-item .dot { width:8px; height:8px; border-radius:50%; }
+    .zone-legend-item.current { border-color: var(--accent); color: var(--ink); font-weight: 600; }
+
+    .block-row.zone-a { background: #fff9e6; border-left: 4px solid #e3bd57; }
+    .block-row.zone-b { background: #eaf3fd; border-left: 4px solid #7aa9e8; }
+    .block-row.zone-c { background: #e9f6ec; border-left: 4px solid #72bf86; }
+    .block-row.zone-d { background: #f0ebf9; border-left: 4px solid #a78bd1; }
+    .block-row.zone-e { background: #eceef3; border-left: 4px solid #8f9ab1; }
+    .block-row.zone-current { box-shadow: inset 0 0 0 1px rgba(15,118,110,0.5); }
+
+    .template-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fafbfc;
+    }
+    .template-btn {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--muted);
+      padding: 5px 10px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .template-btn:hover, .template-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+    .general-template-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 9px 16px;
+      border-bottom: 1px solid #e3d27f;
+      background: rgba(255,253,240,0.75);
+    }
+    .general-template-btn {
+      border: 1px solid #e0cf7d;
+      border-radius: 6px;
+      background: #fffdf0;
+      color: var(--muted);
+      padding: 5px 10px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .general-template-btn.active { background: #fff3b8; border-color: #c9a735; color: #6d4b06; }
+
+    .template-preview-list { display: grid; gap: 8px; }
+    .template-preview-item {
+      display: grid;
+      grid-template-columns: 96px minmax(0,1fr) 18px;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fafbfc;
+    }
+    .template-preview-time { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+    .template-preview-dot { width:12px; height:12px; border-radius:50%; }
+
+    .cards-head h1 { font-size: 28px; margin:0 0 4px; }
+    .cards-head p { margin:0; color: var(--muted); font-size:14px; }
+    .card-grid { display:grid; gap:14px; margin-top:18px; }
+    .card-item {
+      background:#fff; border:1px solid var(--line); border-radius:var(--radius); padding:14px;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .card-item.expired-unused { border-color: #e4b3b3; background: #fffafa; }
+    .card-item-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+    .card-name { font-weight:600; min-width:0; overflow-wrap:anywhere; }
+    .card-status { flex:none; font-size:20px; }
+    .card-meta { display:flex; flex-wrap:wrap; gap:6px; }
+    .card-meta .meta-chip { background: #f1f4f7; color: var(--muted); }
+    .card-warning { color: var(--danger); font-size:12px; }
+    .card-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:auto; }
+    .card-progress-bar { width:100%; height:6px; background:#eef1f4; border-radius:3px; overflow:hidden; margin-bottom:8px; }
+    .card-progress-fill { height:100%; border-radius:3px; transition:width 0.3s; }
+
+    .todo-entry { border-color: #bfe0dc; }
+    .todo-entry .panel-head { border-bottom-color: #dcece9; }
+    .todo-entry-body { display:grid; gap:12px; }
+    .todo-entry-summary { color:var(--muted); margin:0; font-size:14px; }
+
+    .app-footer { margin-top:26px; display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
+    .save-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); }
+
+    .overlay {
+      position:fixed; inset:0; z-index:50; background:rgba(20,25,35,0.42);
+      display:flex; align-items:center; justify-content:center; padding:20px;
+    }
+    .modal {
+      width:min(640px,100%);
+      max-height:86vh;
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:0 18px 50px rgba(20,25,35,0.18);
+      display:flex; flex-direction:column; overflow:hidden;
+    }
+    .modal-head {
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:14px 16px; border-bottom:1px solid var(--line);
+    }
+    .modal-head h2 { font-size:16px; margin:0; }
+    .modal-body { overflow:auto; padding:16px; }
+    .modal-foot {
+      display:flex; justify-content:space-between; gap:10px;
+      padding:12px 16px; border-top:1px solid var(--line);
+    }
+
+    .history-item {
+      width:100%; text-align:left; display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:12px 14px; margin-bottom:8px; border:1px solid var(--line); border-radius:var(--radius); background:#fff;
+      transition:border-color 0.15s;
+    }
+    .history-item:hover { border-color: var(--accent); }
+    .history-date { font-weight:600; margin-bottom:2px; }
+    .history-summary { color:var(--muted); font-size:13px; }
+    .history-arrow { color:var(--muted); font-size:20px; line-height:1; }
+
+    .empty-text { color:var(--muted); text-align:center; padding:24px 12px; margin:0; }
+    .back-btn { margin-bottom:14px; }
+    .detail-title { font-size:20px; margin:0 0 16px; }
+    .detail-section { margin-bottom:20px; }
+    .detail-section h3 { font-size:13px; color:var(--muted); margin:0 0 6px; font-weight:600; }
+    .detail-block {
+      display:grid; grid-template-columns:100px minmax(0,1fr); gap:10px;
+      padding:7px 0; border-bottom:1px dashed var(--line);
+    }
+    .detail-block time { color:var(--muted); font-variant-numeric: tabular-nums; }
+    .detail-list { margin:0; padding:0; list-style:none; }
+    .detail-list li {
+      display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px dashed var(--line); min-width:0;
+    }
+    .detail-list li span:last-child { min-width:0; overflow-wrap:anywhere; }
+    .detail-goal-mark { flex:none; font-size:15px; line-height:1; }
+    .detail-list li.done span:last-child { color:var(--muted); text-decoration:line-through; }
+    .detail-check {
+      width:18px; height:18px; flex:none; border:1px solid var(--line); border-radius:50%;
+      display:flex; align-items:center; justify-content:center; color:#fff;
+    }
+    .detail-check.done { background:var(--accent); border-color:var(--accent); }
+
+    .calendar-panel { padding:0; }
+    .calendar-head {
+      display:flex; align-items:center; gap:10px; padding:16px; border-bottom:1px solid var(--line);
+    }
+    .calendar-head h2 { font-size:20px; margin:0 auto 0 0; cursor:pointer; }
+    .calendar-weekdays, .calendar-grid { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); }
+    .calendar-weekdays { color:var(--muted); font-size:13px; border-bottom:1px solid var(--line); }
+    .calendar-weekdays span { padding:10px 6px; text-align:center; }
+    .calendar-cell {
+      min-height:82px; padding:8px; border-right:1px solid var(--line); border-bottom:1px solid var(--line);
+      cursor:default; background:#fff;
+      position:relative;
+    }
+    .calendar-cell:nth-child(7n) { border-right:0; }
+    .calendar-cell.empty { background:#fafbfc; }
+    .calendar-cell.weekend { background:#fbfbfd; }
+    .calendar-cell.today { background:var(--accent-soft); }
+    .calendar-day { font-weight:600; font-variant-numeric:tab-nums; margin-bottom:5px; }
+    .calendar-badge { color:var(--warm); font-size:12px; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .calendar-important-bars {
+      display: flex;
+      gap: 2px;
+      margin-top: 3px;
+      padding: 0 2px;
+    }
+    .calendar-important-bar {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      min-width: 0;
+    }
+    .calendar-cell.reminder { cursor:pointer; }
+
+    .todos-head h1 { font-size:28px; margin:0 0 4px; }
+    .todos-head p { margin:0; color:var(--muted); font-size:14px; }
+    .matrix-layout {
+      display:grid; grid-template-columns:28px minmax(0,1fr); gap:12px; align-items:stretch; margin-top:18px;
+    }
+    .matrix-y-labels {
+      display:grid; grid-template-rows:1fr 1fr; gap:12px;
+    }
+    .matrix-y-labels span {
+      writing-mode:vertical-rl; text-orientation:mixed;
+      display:flex; align-items:center; justify-content:center;
+      color:var(--muted); font-size:13px;
+    }
+    .matrix {
+      display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:12px;
+    }
+    .quadrant-cell {
+      min-height:180px; border:1px solid var(--line); border-radius:var(--radius);
+      overflow:hidden; display:flex; flex-direction:column;
+    }
+    .quadrant-cell.q1 { background: #fff5f5; }
+    .quadrant-cell.q2 { background: #fff8ee; }
+    .quadrant-cell.q3 { background: #f0faf8; }
+    .quadrant-cell.q4 { background: #f8f9fa; }
+
+    .quadrant-head {
+      padding:12px 14px; border-bottom:1px solid var(--line); background:#fafbfc;
+    }
+    .quadrant-head h2 { font-size:15px; margin:0 0 2px; }
+    .quadrant-head span { color:var(--muted); font-size:12px; }
+    .quadrant-cell.q1 .quadrant-head { background:#fdeeee; border-bottom-color:#f1cfcf; }
+    .quadrant-cell.q2 .quadrant-head { background:#fff1df; border-bottom-color:#f0d9b8; }
+    .quadrant-cell.q3 .quadrant-head { background:#e0f2ef; border-bottom-color:#cde7e2; }
+    .quadrant-cell.q4 .quadrant-head { background:#f0f2f5; }
+    .quadrant-cell.q1 .todo-item { border-color: #e8a0a0; }
+    .quadrant-cell.q2 .todo-item { border-color: #e0b890; }
+    .quadrant-cell.q3 .todo-item { border-color: #90c8c0; }
+    .quadrant-cell.q4 .todo-item { border-color: #b0b8c0; }
+
+    .quadrant-list { padding:8px; flex:1; overflow:auto; }
+    .todo-item {
+      padding:8px 9px; border:1px solid var(--line); border-radius:6px; background:#fff; margin-bottom:8px;
+    }
+    .todo-item-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+    .todo-text { min-width:0; overflow-wrap:anywhere; font-weight:500; }
+    .todo-metric { display:flex; align-items:center; gap:6px; margin-top:8px; flex-wrap:wrap; }
+    .todo-metric .metric-text { color:var(--muted); font-size:13px; white-space:nowrap; }
+    .progress { flex:1 1 70px; min-width:70px; height:6px; border-radius:999px; background:#eef1f4; overflow:hidden; }
+    .progress-fill { display:block; height:100%; width:0; background:var(--accent); border-radius:inherit; }
+    .mini-btn {
+      border:1px solid var(--line); background:#fff; border-radius:5px; padding:4px 8px; font-size:13px; white-space:nowrap;
+    }
+    .mini-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .mini-icon {
+      border:0; background:transparent; color:var(--muted); font-size:18px; line-height:1; padding:2px 4px; flex:none;
+    }
+    .mini-icon:hover { color:var(--danger); }
+    .todo-meta { display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:7px; }
+    .meta-chip {
+      display:inline-flex; align-items:center; gap:3px; padding:2px 6px; border-radius:999px;
+      background:#f1f4f7; color:var(--muted); font-size:12px; white-space:nowrap;
+    }
+    .meta-chip.tag { background:var(--accent-soft); color:var(--accent-deep); }
+    .todo-actions { display:flex; align-items:center; gap:4px; flex:none; }
+    .mini-btn.done-btn { border-color:var(--accent); color:var(--accent); }
+    .empty-mini { margin:0; padding:18px 8px; color:var(--muted); font-size:13px; text-align:center; }
+    .matrix-x-labels {
+      display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:10px 0 18px 40px;
+      color:var(--muted); font-size:13px; text-align:center;
+    }
+    .todo-addbar {
+      position:sticky; bottom:12px;
+      display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px;
+      padding:12px; background:#fff; border:1px solid var(--line); border-radius:var(--radius);
+      box-shadow:0 8px 24px rgba(20,25,35,0.10); margin-top:20px;
+    }
+    .todo-addbar input { border:1px solid var(--line); border-radius:6px; padding:9px 10px; min-width:0; }
+
+    .completed-panel { margin-top:18px; }
+    .completed-head {
+      width:100%; display:flex; align-items:center; gap:8px;
+      border:1px solid var(--line); background:#fff; border-radius:var(--radius);
+      padding:12px 14px; text-align:left;
+    }
+    .completed-head:hover { border-color:var(--accent); }
+    .completed-head .title { font-weight:600; }
+    .completed-arrow { margin-left:auto; color:var(--muted); transition:transform 0.15s; }
+    .completed-panel.expanded .completed-arrow { transform:rotate(90deg); }
+    .completed-body { padding:12px 14px; border:1px solid var(--line); border-top:0; border-radius:0 0 var(--radius) var(--radius); background:#fff; }
+    .completed-group { margin-bottom:12px; }
+    .completed-group:last-child { margin-bottom:0; }
+    .completed-group-title { font-size:13px; color:var(--muted); margin:0 0 6px; }
+    .completed-item {
+      display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px dashed var(--line);
+    }
+    .completed-item .completed-text { min-width:0; overflow-wrap:anywhere; }
+    .restore-btn { margin-left:auto; flex:none; }
+
+    .tag-filter { display:flex; flex-wrap:wrap; gap:7px; margin:16px 0 14px; }
+    .tag-filter-btn {
+      display:inline-flex; align-items:center; gap:4px; border:1px solid var(--line); border-radius:999px;
+      background:#fff; color:var(--muted); padding:6px 12px; font-size:13px;
+    }
+    .tag-filter-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .tag-filter-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .tag-filter-btn .tag-x { display:none; }
+    .tag-filter-btn:hover .tag-x { display:inline; }
+
+    .preset-tags { display:flex; flex-wrap:wrap; gap:7px; }
+    .preset-tag-btn {
+      border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--muted); padding:5px 11px; font-size:13px;
+    }
+    .preset-tag-btn.selected { background:var(--accent-soft); border-color:var(--accent); color:var(--accent-deep); }
+    .chosen-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .chosen-tag {
+      display:inline-flex; align-items:center; gap:4px; padding:3px 7px; border-radius:999px;
+      background:var(--accent-soft); color:var(--accent-deep); font-size:13px;
+    }
+    .chosen-tag button { border:0; background:transparent; color:inherit; font-size:15px; line-height:1; padding:0; }
+
+    .calendar-layout {
+      display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:18px; align-items:start;
+    }
+    .due-panel { min-height:200px; }
+    .due-task-list { padding:8px 0; max-height:560px; overflow:auto; }
+    .due-task-item {
+      display:grid; grid-template-columns:46px minmax(0,1fr); gap:8px; padding:8px 14px; align-items:start;
+    }
+    .due-task-item + .due-task-item { border-top:1px dashed var(--line); }
+    .due-date { color:var(--muted); font-size:13px; white-space:nowrap; }
+    .due-task-main { min-width:0; }
+    .due-task-text { overflow-wrap:anywhere; line-height:1.4; }
+    .due-task-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+
+    .calendar-tooltip {
+      position:fixed; z-index:40; max-width:260px;
+      background:#fff; border:1px solid var(--line); border-radius:var(--radius);
+      box-shadow:0 10px 24px rgba(20,25,35,0.18);
+      padding:10px 12px; font-size:13px; color:var(--ink); pointer-events:none;
+    }
+    .calendar-tooltip-title { font-weight:600; margin-bottom:6px; }
+    .calendar-tooltip-item { padding:4px 0; border-bottom:1px dashed var(--line); overflow-wrap:anywhere; }
+    .calendar-tooltip-empty { color:var(--muted); margin:0; }
+
+    .wizard-input { width:100%; border:1px solid var(--line); border-radius:6px; padding:10px 11px; outline:none; }
+    .wizard-input:focus { border-color:var(--accent); }
+    .wizard-choices { display:grid; gap:10px; }
+    .wizard-choices.cols { grid-template-columns:repeat(2, minmax(0,1fr)); }
+    .choice-btn {
+      border:1px solid var(--line); border-radius:8px; background:#fff; padding:14px 12px; text-align:left;
+    }
+    .choice-btn:hover, .choice-btn.selected { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+    .wizard-field { display:flex; align-items:center; gap:10px; }
+    .wizard-unit { color:var(--muted); white-space:nowrap; }
+
+    .edit-field { margin-bottom:12px; display:grid; gap:6px; }
+    .edit-field label { font-size:13px; color:var(--muted); }
+    .edit-field input, .edit-field textarea, .edit-field select {
+      border:1px solid var(--line); border-radius:6px; padding:9px 10px; outline:none; width:100%;
+    }
+    .edit-field textarea { min-height:90px; resize:vertical; }
+    .edit-field input:focus, .edit-field textarea:focus { border-color:var(--accent); }
+    .edit-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .card-type-options {
+      display:flex; flex-wrap:wrap; align-items:center; gap:12px; min-height:40px;
+    }
+    .card-type-options label { display:flex; align-items:center; gap:5px; font-size:14px; cursor:pointer; }
+
+    .month-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+    .month-btn { padding:12px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; font-size:16px; }
+    .month-btn:hover { background:var(--accent-soft); border-color:var(--accent); }
+
+    #goalsPanel { background:#fff5f5; border-color:#fcd5d5; }
+    #goalsPanel .panel-head { border-bottom-color:#fcd5d5; }
+    #routinesPanel { background:#f5f9ff; border-color:#d5e5fc; }
+    #routinesPanel .panel-head { border-bottom-color:#d5e5fc; }
+    .todo-entry { background:#f5fff8; border-color:#d5fce5; }
+    .todo-entry .panel-head { border-bottom-color:#d5fce5; }
+
+    .note-tag-choices { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    .emoji-select { width:60px; padding:4px 2px; border:1px solid var(--line); border-radius:6px; background:#fff; font-size:16px; text-align:center; }
+
+    .important-dates-panel { margin-top:18px; }
+    .important-date-item {
+      display: grid;
+      grid-template-columns: 14px 46px minmax(0, 1fr) 28px;
+      gap: 6px;
+      padding: 8px 14px;
+      align-items: center;
+      border-bottom: 1px dashed var(--line);
+    }
+    .important-date-color {
+      width: 12px; height: 12px;
+      border-radius: 3px;
+      flex: none;
+    }
+    .important-date-item-date { color: var(--muted); font-size: 13px; white-space: nowrap; }
+    .important-date-item-title { font-size: 13px; overflow-wrap: anywhere; }
+    .important-date-delete { border:0; background:transparent; color:var(--muted); font-size:16px; cursor:pointer; padding:0; line-height:1; }
+    .important-date-delete:hover { color:var(--danger); }
+
+    @media (max-width:900px) { .layout { grid-template-columns:1fr; } }
+    @media (max-width:720px) {
+      .topbar-inner { flex-wrap:wrap; }
+      .main-nav { order:3; width:100%; justify-content:center; }
+      .nav-btn { flex:1; }
+    }
+    @media (max-width:560px) {
+      main { padding:18px 12px 50px; }
+      .topbar-inner { padding:10px 12px; }
+      .date-band h1, .todos-head h1 { font-size:22px; }
+      .block-row { grid-template-columns:84px 12px 84px minmax(0,1fr) 60px 34px; gap:6px; padding:8px 10px; }
+      .panel-head, .goal-row, .routine-row { padding-left:12px; padding-right:12px; }
+      .panel-head { align-items:flex-start; flex-direction:column; }
+      .head-actions { width:100%; justify-content:flex-start; }
+      .calendar-cell { min-height:66px; padding:6px; }
+      .matrix-layout { grid-template-columns:20px minmax(0,1fr); gap:8px; }
+      .matrix { gap:8px; }
+      .quadrant-cell { min-height:150px; }
+      .matrix-x-labels { margin-left:28px; gap:8px; }
+      .edit-grid { grid-template-columns:1fr; }
+      .calendar-layout { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        </span>
+        <span>每日计划</span>
+      </div>
+      <nav class="main-nav" aria-label="主导航">
+        <button class="nav-btn active" type="button" data-view="today">每日计划</button>
+        <button class="nav-btn" type="button" data-view="calendar">日历</button>
+        <button class="nav-btn" type="button" data-view="todos">待办</button>
+        <button class="nav-btn" type="button" data-view="cards">卡项</button>
+      </nav>
+      <div class="top-actions">
+        <div class="date-chip" id="dateChip">--</div>
+        <button class="icon-btn" id="exportBtn" type="button" title="导出数据" aria-label="导出数据">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        </button>
+        <button class="icon-btn" id="historyBtn" type="button" title="查看历史存档" aria-label="查看历史存档">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13a9 9 0 1 0 .5-4.5L3 8"></path><polyline points="12 7 12 12 16 14"></polyline></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 每日计划视图 -->
+    <section id="viewToday" class="view-section">
+      <section class="date-band">
+        <h1 id="dateTitle">--</h1>
+        <div class="date-band-row">
+          <p id="dateSub">--</p>
+          <div class="date-band-actions">
+            <button class="status-capsule" id="cardStatusCapsule" type="button">💳 今日 0 张卡待打卡</button>
+            <button class="text-btn" id="backTodayBtn" type="button">回到今天</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="layout">
+        <div class="layout-left">
+          <section class="panel" aria-labelledby="actualTitle">
+            <div class="panel-head">
+              <h2 id="actualTitle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                今日实际安排
+              </h2>
+              <div class="head-actions">
+                <button class="text-btn" id="copyGeneralBtn" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  复制一般安排
+                </button>
+                <button class="text-btn" id="addActualBtn" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  添加时段
+                </button>
+              </div>
+            </div>
+            <div class="template-bar" id="templateBar"></div>
+            <div class="zone-legend" id="zoneLegend"></div>
+            <div class="blocks" id="actualBlocks"></div>
+          </section>
+
+          <section class="panel sticky-panel" id="generalPanel" aria-labelledby="generalTitle">
+            <div class="panel-head">
+              <h2 id="generalTitle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                一般时间表
+              </h2>
+              <div class="head-actions">
+                <span class="count" id="generalCount"></span>
+                <button class="icon-btn" id="toggleGeneralBtn" type="button" title="收缩或展开" aria-label="收缩或展开">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                </button>
+                <button class="text-btn" id="addGeneralBtn" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  添加
+                </button>
+              </div>
+            </div>
+            <div class="general-template-bar" id="generalTemplateBar"></div>
+            <div class="blocks" id="generalBlocks"></div>
+          </section>
+        </div>
+
+        <aside class="side">
+          <section class="panel todo-entry">
+            <div class="panel-head">
+              <h2>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                待办事项
+              </h2>
+              <span class="count" id="todoEntryCount"></span>
+            </div>
+            <div class="panel-body todo-entry-body">
+              <p class="todo-entry-summary" id="todoEntrySummary">暂无待办</p>
+              <button class="text-btn full" id="openTodosBtn" type="button">进入待办</button>
+            </div>
+          </section>
+
+          <section class="panel" id="goalsPanel" aria-labelledby="goalsTitle">
+            <div class="panel-head">
+              <h2 id="goalsTitle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+                本周目标
+              </h2>
+              <div class="head-actions">
+                <span class="week-label" id="weekLabel"></span>
+                <button class="icon-btn collapse-btn" id="toggleGoalsBtn" type="button" title="折叠或展开" aria-label="折叠或展开">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                </button>
+              </div>
+            </div>
+            <div class="goals" id="goals"></div>
+            <div class="panel-foot">
+              <button class="text-btn full" id="addGoalBtn" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                添加目标
+              </button>
+            </div>
+          </section>
+
+          <section class="panel" id="routinesPanel" aria-labelledby="routinesTitle">
+            <div class="panel-head">
+              <h2 id="routinesTitle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                固定日常
+              </h2>
+              <div class="head-actions">
+                <span class="count" id="routineCount"></span>
+                <button class="icon-btn collapse-btn" id="toggleRoutinesBtn" type="button" title="折叠或展开" aria-label="折叠或展开">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                </button>
+              </div>
+            </div>
+            <div class="routines" id="routines"></div>
+            <div class="panel-foot">
+              <button class="text-btn full" id="addRoutineBtn" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                添加日常
+              </button>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <footer class="app-footer">
+        <span class="save-dot" aria-hidden="true"></span>
+        <span id="saveText">内容自动保存到本机</span>
+      </footer>
+    </section>
+
+    <!-- 日历视图 -->
+    <section id="viewCalendar" class="view-section hidden">
+      <div class="calendar-layout">
+        <div class="panel calendar-panel">
+          <div class="calendar-head">
+            <button class="icon-btn" id="prevMonthBtn" type="button" title="上个月" aria-label="上个月">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <h2 id="calendarMonth"></h2>
+            <button class="icon-btn" id="nextMonthBtn" type="button" title="下个月" aria-label="下个月">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+            <button class="text-btn" id="calendarTodayBtn" type="button">今天</button>
+            <button class="text-btn" id="addImportantDateBtn" type="button">添加重要日期</button>
+          </div>
+          <div class="calendar-weekdays">
+            <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+        <aside style="display:grid; gap:18px; align-items:start;">
+          <section class="panel due-panel">
+            <div class="panel-head">
+              <h2>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                截止任务
+              </h2>
+            </div>
+            <div class="due-task-list" id="dueTaskList"></div>
+          </section>
+          <section class="panel important-dates-panel">
+            <div class="panel-head">
+              <h2>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M3 10h18"></path><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M16 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path><path d="M16 18h.01"></path></svg>
+                重要日期
+              </h2>
+            </div>
+            <div class="due-task-list" id="importantDatesList"></div>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <!-- 待办视图 -->
+    <section id="viewTodos" class="view-section hidden">
+      <div class="todos-head">
+        <h1>待办事项</h1>
+        <p id="todoSummaryLine">0 项待办</p>
+      </div>
+      <div class="tag-filter" id="tagFilter"></div>
+
+      <div class="matrix-layout">
+        <div class="matrix-y-labels">
+          <span>重要</span>
+          <span>不重要</span>
+        </div>
+        <div class="matrix" id="todoMatrix"></div>
+      </div>
+      <div class="matrix-x-labels">
+        <span>不紧急</span>
+        <span>紧急</span>
+      </div>
+
+      <div class="todo-addbar">
+        <input id="todoTextInput" type="text" placeholder="输入待办内容">
+        <button class="text-btn primary" id="addTodoBtn" type="button">添加待办</button>
+      </div>
+
+      <section class="panel completed-panel" id="completedPanel">
+        <button class="completed-head" id="completedToggleBtn" type="button">
+          <span class="title">已完成</span>
+          <span class="count" id="completedCount">0</span>
+          <span class="completed-arrow">›</span>
+        </button>
+        <div class="completed-body hidden" id="completedBody"></div>
+      </section>
+    </section>
+
+    <!-- 卡项视图 -->
+    <section id="viewCards" class="view-section hidden">
+      <div class="cards-head">
+        <h1>卡项管理</h1>
+        <p id="cardsSummaryLine">0 张卡</p>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0;">
+        <div style="display: flex; gap: 8px;">
+          <button class="text-btn" id="toggleExpiredBtn" type="button" style="border-color: var(--muted);">🗑️ 已过期卡片 (<span id="expiredCount">0</span>)</button>
+        </div>
+        <button class="text-btn primary" id="addCardBtnMain" type="button">添加卡项</button>
+      </div>
+      <div class="card-grid" id="cardGrid"></div>
+    </section>
+  </main>
+
+  <!-- 弹窗模版 -->
+  <div class="calendar-tooltip hidden" id="calendarTooltip"></div>
+
+  <div class="overlay hidden" id="historyOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="历史存档">
+      <div class="modal-head">
+        <h2 id="historyTitle">历史存档</h2>
+        <button class="icon-btn" id="historyCloseBtn" type="button" title="关闭" aria-label="关闭">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="historyBody"></div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="wizardOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="新建待办">
+      <div class="modal-head">
+        <h2 id="wizardTitle">新建待办</h2>
+        <button class="icon-btn" id="wizardCloseBtn" type="button" title="关闭" aria-label="关闭">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="wizardBody"></div>
+      <div class="modal-foot">
+        <button class="text-btn" id="wizardBackBtn" type="button">上一步</button>
+        <button class="text-btn primary" id="wizardNextBtn" type="button">下一步</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="noteOverlay">
+    <div class="modal note-modal" role="dialog" aria-modal="true" aria-label="备注">
+      <div class="modal-head">
+        <h2>待办详情</h2>
+        <button class="icon-btn" id="noteCloseBtn" type="button" title="关闭" aria-label="关闭">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="edit-grid">
+          <div class="edit-field">
+            <label for="editDueDate">截止日期</label>
+            <input id="editDueDate" type="date">
+          </div>
+          <div class="edit-field">
+            <label for="editEstimate">预估耗时（分钟）</label>
+            <input id="editEstimate" type="number" min="0" placeholder="例如 30">
+          </div>
+        </div>
+        <div class="edit-field">
+          <label for="editTags">标签（用逗号分隔）</label>
+          <input id="editTags" type="text" placeholder="工作, 学习">
+        </div>
+        <div class="edit-field">
+          <label for="noteText">备注</label>
+          <textarea id="noteText" placeholder="填写备注"></textarea>
+        </div>
+        <div id="noteTagChoices" class="note-tag-choices"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="text-btn primary full" id="noteSaveBtn" type="button">保存详情</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="templateOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="模板预览">
+      <div class="modal-head">
+        <h2 id="templatePreviewTitle">模板预览</h2>
+        <button class="icon-btn" id="templatePreviewCloseBtn" type="button" title="关闭" aria-label="关闭">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="templatePreviewBody"></div>
+      <div class="modal-foot">
+        <button class="text-btn" id="templateCancelBtn" type="button">取消</button>
+        <button class="text-btn primary" id="templateConfirmBtn" type="button">应用模板</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导出 / 导入弹窗 -->
+  <div class="overlay hidden" id="exportOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="导出数据">
+      <div class="modal-head">
+        <h2>导出 / 导入数据</h2>
+        <button class="icon-btn" id="exportCloseBtn" type="button" title="关闭" aria-label="关闭">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--muted);font-size:14px;margin-top:0;">可将全部数据导出为文件用于备份，或将备份文件导入恢复。</p>
+        <div class="edit-field">
+          <label>导出</label>
+          <div style="display:grid;gap:8px;">
+            <button class="text-btn" id="exportJsonBtn" type="button">⬇️ 导出全部数据（JSON 备份）</button>
+            <button class="text-btn" id="exportCsvBtn" type="button">⬇️ 导出今日计划为 CSV</button>
+            <button class="text-btn" id="exportTextBtn" type="button">⬇️ 导出今日计划为纯文本</button>
+          </div>
+        </div>
+        <div class="edit-field">
+          <label for="importFileInput">导入备份（JSON）</label>
+          <input id="importFileInput" type="file" accept="application/json">
+          <button class="text-btn primary full" id="importApplyBtn" type="button" style="margin-top:8px;">导入</button>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="text-btn" id="exportCloseFootBtn" type="button">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加卡项弹窗 -->
+  <div class="overlay hidden" id="cardOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="添加卡项">
+      <div class="modal-head">
+        <h2>添加卡项</h2>
+        <button class="icon-btn" id="cardCloseBtn" type="button" title="关闭" aria-label="关闭">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="edit-field">
+          <label for="cardName">卡名称</label>
+          <input id="cardName" type="text" placeholder="例如：游泳馆月卡">
+        </div>
+        <div class="edit-field">
+          <label>卡类型</label>
+          <div class="card-type-options">
+            <label><input type="radio" name="cardType" value="term" checked>期限卡</label>
+            <label><input type="radio" name="cardType" value="count">次卡</label>
+          </div>
+        </div>
+        <div class="edit-grid">
+          <div class="edit-field">
+            <label for="cardStart">开始日期</label>
+            <input id="cardStart" type="date">
+          </div>
+          <div class="edit-field">
+            <label for="cardEnd">截止日期</label>
+            <input id="cardEnd" type="date">
+          </div>
+        </div>
+        <div class="edit-grid">
+          <div class="edit-field">
+            <label for="cardTotal">总次数</label>
+            <input id="cardTotal" type="number" min="1" disabled>
+          </div>
+          <div class="edit-field">
+            <label for="cardCost">费用</label>
+            <input id="cardCost" type="number" min="0" step="0.01" placeholder="0">
+          </div>
+        </div>
+        <div class="edit-field">
+          <label for="cardNote">备注</label>
+          <textarea id="cardNote" placeholder="填写备注"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="text-btn primary full" id="cardSaveBtn" type="button">保存卡项</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="cardDetailOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="卡项详情">
+      <div class="modal-head">
+        <h2>卡项详情</h2>
+        <button class="icon-btn" id="cardDetailCloseBtn" type="button" title="关闭" aria-label="关闭">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="cardDetailBody"></div>
+      <div class="modal-foot">
+        <button class="text-btn" id="cardDetailEditBtn" type="button">编辑</button>
+        <button class="text-btn" id="cardDetailCancelBtn" type="button" style="display:none;">取消</button>
+        <button class="text-btn" id="cardDetailDeleteBtn" type="button" style="display:none; color: var(--danger); border-color: var(--danger);">🗑️ 删除</button>
+        <button class="text-btn primary" id="cardDetailSaveBtn" type="button" style="display:none;">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="generalTemplateOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="模板管理">
+      <div class="modal-head">
+        <h2>模板管理</h2>
+        <button class="icon-btn" id="generalTemplateCloseBtn" type="button" title="关闭" aria-label="关闭">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="generalTemplateBody"></div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="importantDateOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="添加重要日期">
+      <div class="modal-head">
+        <h2>添加重要日期</h2>
+        <button class="icon-btn" id="importantDateCloseBtn" type="button" title="关闭" aria-label="关闭">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="edit-field">
+          <label for="importantDateInput">日期</label>
+          <input id="importantDateInput" type="date">
+        </div>
+        <div class="edit-field">
+          <label for="importantDateText">内容</label>
+          <input id="importantDateText" type="text" placeholder="例如：项目截止">
+        </div>
+        <div class="edit-field">
+          <label>选择颜色</label>
+          <div class="preset-tags" id="importantColorPicker">
+            <button type="button" class="preset-tag-btn color-pick-btn selected" data-color="#ef4444" style="background:#ef4444;width:28px;height:28px;padding:0;border-radius:50%;min-width:28px;"></button>
+            <button type="button" class="preset-tag-btn color-pick-btn" data-color="#f59e0b" style="background:#f59e0b;width:28px;height:28px;padding:0;border-radius:50%;min-width:28px;"></button>
+            <button type="button" class="preset-tag-btn color-pick-btn" data-color="#10b981" style="background:#10b981;width:28px;height:28px;padding:0;border-radius:50%;min-width:28px;"></button>
+            <button type="button" class="preset-tag-btn color-pick-btn" data-color="#3b82f6" style="background:#3b82f6;width:28px;height:28px;padding:0;border-radius:50%;min-width:28px;"></button>
+            <button type="button" class="preset-tag-btn color-pick-btn" data-color="#8b5cf6" style="background:#8b5cf6;width:28px;height:28px;padding:0;border-radius:50%;min-width:28px;"></button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="text-btn primary full" id="importantDateSaveBtn" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="reminderOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="当日提醒">
+      <div class="modal-head">
+        <h2 id="reminderTitle">当日提醒</h2>
+        <button class="icon-btn" id="reminderCloseBtn" type="button" title="关闭" aria-label="关闭">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="reminderBody"></div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="yearViewOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="选择月份">
+      <div class="modal-head">
+        <h2>
+          <button class="icon-btn" id="yearViewPrevBtn" type="button" title="上一年">◀</button>
+          <span id="yearViewYearLabel" style="min-width:80px; text-align:center; display:inline-block;">2026</span>
+          <button class="icon-btn" id="yearViewNextBtn" type="button" title="下一年">▶</button>
+        </h2>
+        <button class="icon-btn" id="yearViewCloseBtn" type="button">✕</button>
+      </div>
+      <div class="modal-body" id="yearViewBody"></div>
+    </div>
+  </div>
+
+<script>
+  (function () {
+    'use strict';
+
+    var WEEKDAYS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+    var QUADRANT_ORDER = [3, 1, 4, 2];
+    var QUADRANT_LABELS = { 1: '紧急重要', 2: '紧急不重要', 3: '不紧急重要', 4: '不紧急不重要' };
+    var QUADRANT_SUB = { 1: '重要 · 紧急', 2: '不重要 · 紧急', 3: '重要 · 不紧急', 4: '不重要 · 不紧急' };
+    var PRESET_TAGS = ['运动', '科研', '金融', '生活', '学习', '爱好', '健康', '创作'];
+    var PRESET_TEMPLATES = [];
+    var IMPORTANT_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
+
+    var SOLAR_TERMS = ['小寒', '大寒', '立春', '雨水', '惊蛰', '春分', '清明', '谷雨', '立夏', '小满', '芒种', '夏至', '小暑', '大暑', '立秋', '处暑', '白露', '秋分', '寒露', '霜降', '立冬', '小雪', '大雪', '冬至'];
+    var TERM_MINUTES = [0, 21208, 42467, 63836, 85337, 107014, 128867, 150921, 173149, 195551, 218072, 240693, 263343, 285989, 308563, 331033, 353350, 375494, 397447, 419210, 440795, 462224, 483532, 504758];
+    var HOLIDAYS = {
+      '2026-01-01': '元旦',
+      '2026-02-16': '除夕',
+      '2026-02-17': '春节',
+      '2026-02-18': '初二',
+      '2026-04-05': '清明',
+      '2026-05-01': '劳动节',
+      '2026-06-19': '端午',
+      '2026-09-25': '中秋',
+      '2026-10-01': '国庆'
+    };
+
+    var storage = (function () {
+      try {
+        var probe = '__dplan_probe__';
+        window.localStorage.setItem(probe, '1');
+        window.localStorage.removeItem(probe);
+        return window.localStorage;
+      } catch (err) {
+        var mem = {};
+        return {
+          getItem: function (key) { return Object.prototype.hasOwnProperty.call(mem, key) ? mem[key] : null; },
+          setItem: function (key, value) { mem[key] = String(value); },
+          removeItem: function (key) { delete mem[key]; }
+        };
+      }
+    })();
+
+    function $(sel, root) { return (root || document).querySelector(sel); }
+    function makeEl(tag, className, text) {
+      var node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+    function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function dateKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+    function parseKey(key) {
+      var p = key.split('-').map(Number);
+      return new Date(p[0], p[1] - 1, p[2]);
+    }
+    function todayKey() { return dateKey(new Date()); }
+
+    function weekKey(d) {
+      var t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
+      var day = (t.getDay() + 6) % 7;
+      t.setDate(t.getDate() - day + 3);
+      var firstThursday = new Date(t.getFullYear(), 0, 1);
+      if (firstThursday.getDay() !== 4) {
+        firstThursday.setMonth(0, 1 + ((4 - firstThursday.getDay()) + 7) % 7);
+      }
+      var week = 1 + Math.round((t - firstThursday) / (7 * 24 * 3600 * 1000));
+      return t.getFullYear() + '-W' + pad2(week);
+    }
+
+    function loadJSON(key, fallback) {
+      try {
+        var raw = storage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (err) {
+        return fallback;
+      }
+    }
+
+    function saveJSON(key, value) {
+      try { storage.setItem(key, JSON.stringify(value)); } catch (err) {}
+    }
+
+    function defaultBlocks() {
+      return [
+        ['06:00', '07:00', '起床与准备'],
+        ['07:00', '08:00', '早餐与通勤'],
+        ['08:00', '10:00', '深度工作'],
+        ['10:00', '12:00', '上午事项'],
+        ['12:00', '13:00', '午餐休息'],
+        ['13:00', '15:00', '下午专注'],
+        ['15:00', '17:00', '下午事项'],
+        ['17:00', '18:00', '运动时间'],
+        ['18:00', '19:00', '晚餐'],
+        ['19:00', '21:00', '晚间安排'],
+        ['21:00', '22:00', '睡前复盘']
+      ].map(function (item) {
+        return { id: uid(), start: item[0], end: item[1], title: item[2] };
+      });
+    }
+
+    function defaultGoals() {
+      return [
+        { id: uid(), text: '', done: false },
+        { id: uid(), text: '', done: false },
+        { id: uid(), text: '', done: false }
+      ];
+    }
+
+    function defaultRoutines() { return []; }
+
+    var ZONES = [
+      { name: '黄金专注区', color: '#e3bd57', cls: 'zone-a', start: 360, end: 540 },
+      { name: '深度工作区', color: '#7aa9e8', cls: 'zone-b', start: 540, end: 780 },
+      { name: '协作与行政区', color: '#72bf86', cls: 'zone-c', start: 780, end: 1080 },
+      { name: '学习与复盘区', color: '#a78bd1', cls: 'zone-d', start: 1080, end: 1320 },
+      { name: '准备休息区', color: '#8f9ab1', cls: 'zone-e', start: 1320, end: 1440 }
+    ];
+
+    function sortBlocks(list) {
+      return list.slice().sort(function (a, b) {
+        return String(a.start).localeCompare(String(b.start)) || String(a.end).localeCompare(String(b.end));
+      });
+    }
+
+    function minutesOf(time) {
+      var p = String(time).split(':').map(Number);
+      return p[0] * 60 + p[1];
+    }
+
+    function zoneForMinutes(mins) {
+      if (mins >= 1320 || mins < 360) return ZONES[4];
+      for (var i = 0; i < 4; i++) {
+        if (mins >= ZONES[i].start && mins < ZONES[i].end) return ZONES[i];
+      }
+      return ZONES[4];
+    }
+
+    function buildBlockRow(block, kind) {
+      var row = makeEl('div', 'block-row');
+      row.dataset.id = block.id;
+      if (kind === 'actual') {
+        var zone = zoneForMinutes(minutesOf(block.start));
+        row.classList.add(zone.cls);
+        if (state.key === todayKey()) {
+          var now = new Date();
+          var nowMins = now.getHours() * 60 + now.getMinutes();
+          var start = minutesOf(block.start);
+          var end = minutesOf(block.end);
+          if (end <= start) end += 24 * 60;
+          var current = nowMins;
+          if (current < start) current += 24 * 60;
+          if (current >= start && current < end) row.classList.add('zone-current');
+        }
+      }
+      var start = makeEl('input', 'time-input');
+      start.type = 'time';
+      start.value = block.start;
+      start.dataset.id = block.id;
+      start.dataset.field = 'start';
+      start.setAttribute('aria-label', '开始时间');
+
+      var dash = makeEl('span', 'time-dash', '—');
+
+      var end = makeEl('input', 'time-input');
+      end.type = 'time';
+      end.value = block.end;
+      end.dataset.id = block.id;
+      end.dataset.field = 'end';
+      end.setAttribute('aria-label', '结束时间');
+
+      var title = makeEl('input', 'text-input block-title');
+      title.type = 'text';
+      title.value = block.title;
+      title.placeholder = '写下这一时段要做的事';
+      title.dataset.id = block.id;
+      title.dataset.field = 'title';
+
+      var emoji = makeEl('select', 'emoji-select');
+      emoji.innerHTML = `
+        <option value="📌">📌</option>
+        <option value="💡">💡</option>
+        <option value="📚">📚</option>
+        <option value="💪">💪</option>
+        <option value="🎯">🎯</option>
+        <option value="✍️">✍️</option>
+        <option value="⏰">⏰</option>
+        <option value="🌟">🌟</option>
+      `;
+      emoji.value = block.emoji || '📌';
+      emoji.dataset.id = block.id;
+      emoji.dataset.field = 'emoji';
+      emoji.setAttribute('aria-label', '时段图标');
+
+      var del = makeEl('button', 'icon-btn delete-btn');
+      del.type = 'button';
+      del.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>';
+      del.title = '删除该时段';
+      del.setAttribute('aria-label', '删除该时段');
+      del.dataset.id = block.id;
+      del.dataset.action = 'delete-block';
+
+      if (block.color) row.style.borderLeftColor = block.color;
+      row.append(start, dash, end, title, emoji, del);
+      return row;
+    }
+
+    function renderBlocks(kind) {
+      var container = kind === 'general' ? generalBlocksEl : actualBlocksEl;
+      var list = kind === 'general' ? state.generalBlocks : state.actualBlocks;
+      container.innerHTML = '';
+      if (list.length === 0) {
+        container.appendChild(makeEl('p', 'empty-blocks', kind === 'general' ? '还没有一般安排' : '今天暂无安排'));
+      } else {
+        list.forEach(function (block) { container.appendChild(buildBlockRow(block, kind)); });
+      }
+      if (kind === 'general') $('#generalCount').textContent = list.length + ' 个时段';
+      if (kind === 'actual') renderZoneLegend();
+      renderSummary();
+    }
+
+    function renderZoneLegend() {
+      var legend = $('#zoneLegend');
+      legend.innerHTML = '';
+      var now = new Date();
+      var nowMins = now.getHours() * 60 + now.getMinutes();
+      var currentZone = zoneForMinutes(nowMins);
+      ZONES.forEach(function (zone) {
+        var item = makeEl('span', 'zone-legend-item' + (zone === currentZone ? ' current' : ''));
+        var dot = makeEl('span', 'dot');
+        dot.style.background = zone.color;
+        item.appendChild(dot);
+        item.appendChild(document.createTextNode(zone.name));
+        legend.appendChild(item);
+      });
+    }
+
+    function renderDate() {
+      var d = parseKey(state.key);
+      $('#dateChip').textContent = (d.getMonth() + 1) + '月' + d.getDate() + '日';
+      $('#dateTitle').textContent = d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 · ' + WEEKDAYS[d.getDay()];
+      $('#weekLabel').textContent = '第' + state.week.split('-W')[1] + '周';
+      var isToday = state.key === todayKey();
+      $('#backTodayBtn').style.display = isToday ? 'none' : '';
+      renderSummary();
+      renderCardStatusCapsule();
+    }
+
+    function renderGoals() {
+      state.goals.sort(function (a, b) {
+        if (a.done && !b.done) return 1;
+        if (!a.done && b.done) return -1;
+        return 0;
+      });
+      goalsEl.innerHTML = '';
+      state.goals.forEach(function (goal) {
+        var row = makeEl('div', 'goal-row');
+        row.dataset.id = goal.id;
+        if (goal.done) row.classList.add('done');
+
+        var handle = makeEl('span', 'drag-handle', '⠿');
+        handle.title = '拖拽排序';
+
+        var check = makeEl('button', 'goal-check');
+        check.type = 'button';
+        check.textContent = goal.done ? '✅' : '⭕';
+        check.dataset.id = goal.id;
+        check.dataset.action = 'toggle-goal';
+        check.title = goal.done ? '长按拖动 · 标记为未完成' : '长按拖动 · 标记为已完成';
+        check.setAttribute('aria-label', check.title);
+
+        var input = makeEl('input', 'text-input goal-input');
+        input.type = 'text';
+        input.value = goal.text;
+        input.placeholder = '例如：完成项目初稿';
+        input.dataset.id = goal.id;
+
+        var del = makeEl('button', 'icon-btn delete-btn');
+        del.type = 'button';
+        del.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>';
+        del.title = '删除目标';
+        del.setAttribute('aria-label', '删除目标');
+        del.dataset.id = goal.id;
+        del.dataset.action = 'delete-goal';
+
+        row.append(handle, check, input, del);
+        goalsEl.appendChild(row);
+      });
+    }
+
+    function renderRoutines() {
+      state.routines.sort(function (a, b) {
+        if (a.done && !b.done) return 1;
+        if (!a.done && b.done) return -1;
+        return 0;
+      });
+      routinesEl.innerHTML = '';
+      if (state.routines.length === 0) {
+        var emptyMsg = makeEl('p', 'empty-blocks', '暂无固定日常，点击下方添加日常');
+        routinesEl.appendChild(emptyMsg);
+      } else {
+        state.routines.forEach(function (routine) {
+          var row = makeEl('div', 'routine-row');
+          row.dataset.id = routine.id;
+          if (routine.done) row.classList.add('done');
+
+          var handle = makeEl('span', 'drag-handle', '⠿');
+          handle.title = '拖拽排序';
+
+          var check = makeEl('button', 'check');
+          check.type = 'button';
+          check.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+          check.dataset.id = routine.id;
+          check.dataset.action = 'toggle-routine';
+          check.setAttribute('aria-pressed', routine.done ? 'true' : 'false');
+          check.title = routine.done ? '标记为未完成' : '标记为完成';
+          check.setAttribute('aria-label', check.title);
+
+          var input = makeEl('input', 'text-input routine-input');
+          input.type = 'text';
+          input.value = routine.text;
+          input.placeholder = '日常事项';
+          input.dataset.id = routine.id;
+
+          var del = makeEl('button', 'icon-btn delete-btn');
+          del.type = 'button';
+          del.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>';
+          del.title = '删除日常';
+          del.setAttribute('aria-label', '删除日常');
+          del.dataset.id = routine.id;
+          del.dataset.action = 'delete-routine';
+
+          row.append(handle, check, input, del);
+          routinesEl.appendChild(row);
+        });
+      }
+      renderSummary();
+    }
+
+    function enableDragSort(container, getList, setList, saveFn, renderFn) {
+      var drag = null;
+      container.addEventListener('pointerdown', function (event) {
+        var handle = event.target.closest('.drag-handle');
+        if (!handle) return;
+        event.preventDefault();
+        var row = handle.closest('[data-id]');
+        if (!row) return;
+        var id = row.dataset.id;
+        var list = getList();
+        var startIndex = list.findIndex(function (item) { return item.id === id; });
+        drag = { index: startIndex, active: true };
+        container.classList.add('drag-active');
+
+        function onMove(ev) {
+          if (!drag) return;
+          ev.preventDefault();
+          var rows = Array.from(container.children);
+          var targetIndex = drag.index;
+          rows.forEach(function (r, i) {
+            var rect = r.getBoundingClientRect();
+            if (ev.clientY > rect.top && ev.clientY < rect.bottom) targetIndex = i;
+          });
+          if (targetIndex !== drag.index) {
+            var current = getList();
+            var item = current.splice(drag.index, 1)[0];
+            current.splice(targetIndex, 0, item);
+            setList(current);
+            drag.index = targetIndex;
+            renderFn();
+          }
+        }
+
+        function onUp() {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointercancel', onUp);
+          if (drag && drag.active) saveFn();
+          drag = null;
+          container.classList.remove('drag-active');
+        }
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onUp);
+      });
+    }
+
+    function renderSummary() {
+      var done = state.routines.filter(function (r) { return r.done; }).length;
+      $('#routineCount').textContent = done + ' / ' + state.routines.length;
+      var viewHint = (state.key === todayKey()) ? '' : '（查看日期：' + fmtKey(state.key) + '）';
+      $('#dateSub').textContent = state.actualBlocks.length + ' 个今日时段 · ' + state.generalBlocks.length + ' 个一般时段 · 本周第 ' + state.week.split('-W')[1] + ' 周 ' + viewHint;
+      var todoCount = state.todos.filter(function (t) { return !t.done; }).length;
+      $('#todoEntryCount').textContent = todoCount + ' 项';
+      $('#todoEntrySummary').textContent = todoCount ? ('待办 ' + todoCount + ' 项，按四象限整理') : '暂无待办';
+    }
+
+    function addMinutes(time, mins) {
+      var parts = time.split(':').map(Number);
+      var total = (parts[0] * 60 + parts[1] + mins) % (24 * 60);
+      return pad2(Math.floor(total / 60)) + ':' + pad2(total % 60);
+    }
+
+    function addBlock(kind) {
+      var list = kind === 'general' ? state.generalBlocks : state.actualBlocks;
+      var last = list[list.length - 1];
+      var start = last ? last.end : '09:00';
+      var block = { id: uid(), start: start, end: addMinutes(start, 60), title: '', color: '#e3bd57', emoji: '📌' };
+      list.push(block);
+      if (kind === 'general') state.generalBlocks = sortBlocks(state.generalBlocks);
+      else state.actualBlocks = sortBlocks(state.actualBlocks);
+      renderBlocks(kind);
+      if (kind === 'general') saveGeneralBlocks();
+      else {
+        markCurrentTemplateCustom();
+        saveToday();
+      }
+      var container = kind === 'general' ? generalBlocksEl : actualBlocksEl;
+      var focus = container.querySelector('.block-title[data-id="' + block.id + '"]');
+      if (focus) focus.focus();
+    }
+
+    var pendingTemplate = null;
+    function markCurrentTemplateCustom() {
+      state.currentTemplate = {
+        id: 'custom',
+        name: '自定义',
+        blocks: state.actualBlocks.map(function (b) {
+          return { start: b.start, end: b.end, title: b.title, color: b.color || '#e3bd57', emoji: b.emoji || '📌' };
+        })
+      };
+      saveTimeTemplates();
+      renderTemplateBar();
+    }
+
+    function renderTemplateBar() {
+      var bar = $('#templateBar');
+      if (!bar) return;
+      bar.innerHTML = '';
+    }
+
+    function openTemplatePreview(templateId) {
+      var template = templateId === 'custom'
+        ? state.currentTemplate
+        : PRESET_TEMPLATES.find(function (t) { return t.id === templateId; });
+      if (!template) return;
+      pendingTemplate = template;
+      $('#templatePreviewTitle').textContent = '模板预览 · ' + template.name;
+      var body = $('#templatePreviewBody');
+      body.innerHTML = '';
+      var list = makeEl('div', 'template-preview-list');
+      template.blocks.forEach(function (block) {
+        var row = makeEl('div', 'template-preview-item');
+        row.appendChild(makeEl('span', 'template-preview-time', block.start + ' – ' + block.end));
+        row.appendChild(makeEl('span', '', block.title || '（未命名）'));
+        var dot = makeEl('span', 'template-preview-dot');
+        dot.style.background = block.color || '#e3bd57';
+        row.appendChild(dot);
+        list.appendChild(row);
+      });
+      body.appendChild(list);
+      $('#templateOverlay').classList.remove('hidden');
+    }
+
+    function applyPendingTemplate() {
+      if (!pendingTemplate) return;
+      state.actualBlocks = pendingTemplate.blocks.map(function (b) {
+        return { id: uid(), start: b.start, end: b.end, title: b.title, color: b.color || '#e3bd57', emoji: b.emoji || '📌' };
+      });
+      state.currentTemplate = pendingTemplate.id === 'custom'
+        ? pendingTemplate
+        : { id: pendingTemplate.id, name: pendingTemplate.name, blocks: pendingTemplate.blocks.slice() };
+      saveTimeTemplates();
+      renderBlocks('actual');
+      renderTemplateBar();
+      saveToday();
+      closeTemplatePreview();
+    }
+
+    function closeTemplatePreview() {
+      $('#templateOverlay').classList.add('hidden');
+      pendingTemplate = null;
+    }
+
+    function applyGeneralCollapse() {
+      var collapsed = !!loadJSON('dplan.v1.ui.generalCollapsed', false);
+      $('#generalPanel').classList.toggle('collapsed', collapsed);
+      $('#toggleGeneralBtn').innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="' + (collapsed ? '6 9 12 15 18 9' : '18 15 12 9 6 15') + '"></polyline></svg>';
+    }
+
+    function applySectionCollapse(panelId, btnId, key) {
+      var collapsed = !!loadJSON(key, false);
+      $('#' + panelId).classList.toggle('collapsed', collapsed);
+      $('#' + btnId).innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="' + (collapsed ? '6 9 12 15 18 9' : '18 15 12 9 6 15') + '"></polyline></svg>';
+    }
+
+    function toggleSectionCollapse(panelId, btnId, key) {
+      var collapsed = !$('#' + panelId).classList.contains('collapsed');
+      saveJSON(key, collapsed);
+      applySectionCollapse(panelId, btnId, key);
+    }
+
+    function showView(view) {
+      state.view = view;
+      $('#viewToday').classList.toggle('hidden', view !== 'today');
+      $('#viewCalendar').classList.toggle('hidden', view !== 'calendar');
+      $('#viewTodos').classList.toggle('hidden', view !== 'todos');
+      $('#viewCards').classList.toggle('hidden', view !== 'cards');
+      document.querySelectorAll('.nav-btn').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.view === view);
+      });
+      $('#historyBtn').style.display = view === 'today' ? '' : 'none';
+      if (view === 'calendar') {
+        renderCalendar();
+        renderDueTaskList();
+        renderImportantDatesList();
+      } else {
+        hideCalendarTooltip();
+      }
+      if (view === 'todos') renderTodos();
+      if (view === 'cards') renderCards();
+    }
+
+    // ===== 按周存储目标 =====
+    function getWeekKey() {
+      return 'dplan.v1.week.' + state.week;
+    }
+
+    function loadWeekGoals() {
+      var data = loadJSON(getWeekKey(), null);
+      if (data && Array.isArray(data.goals)) {
+        return data.goals;
+      }
+      return [];
+    }
+
+    function saveWeekGoals() {
+      saveJSON(getWeekKey(), { goals: state.goals });
+    }
+
+    // ===== 历史存档：渲染列表 =====
+    function renderHistoryList() {
+  var historyBody = $('#historyBody');
+  var historyTitle = $('#historyTitle');
+  historyTitle.textContent = '历史存档';
+
+  var keys = [];
+  try {
+    for (var i = 0; i < storage.length; i++) {
+      var key = storage.key(i);
+      if (key && key.indexOf('dplan.v1.day.') === 0) {
+        keys.push(key.slice('dplan.v1.day.'.length));
+      }
+    }
+  } catch (err) {}
+  keys.sort().reverse();
+
+  var list = makeEl('div', 'history-list');
+  if (keys.length === 0) {
+    list.appendChild(makeEl('p', 'empty-text', '还没有历史记录'));
+  } else {
+    keys.forEach(function (key) {
+      var rec = loadJSON('dplan.v1.day.' + key, null);
+      if (!rec || !Array.isArray(rec.actualBlocks) || rec.actualBlocks.length === 0) return;
+
+      var item = makeEl('div', 'history-item');
+      item.dataset.key = key;
+      item.style.cursor = 'pointer';
+
+      var left = makeEl('div');
+      var label = fmtKey(key) + (key === todayKey() ? ' (今天)' : '');
+      left.appendChild(makeEl('div', 'history-date', label));
+      var blocks = rec.actualBlocks || [];
+      var goalsSnapshot = rec.goalsSnapshot || rec.goals || [];
+      var goalDone = goalsSnapshot.filter(function (g) { return g.done; }).length;
+      var routineDone = rec.routines ? rec.routines.filter(function (r) { return r.done; }).length : 0;
+      left.appendChild(makeEl('div', 'history-summary', blocks.length + ' 个时段 · ' + goalDone + ' 项目标 · ' + routineDone + ' 项日常'));
+      item.appendChild(left);
+
+      var rightWrap = makeEl('div');
+      rightWrap.style.display = 'flex';
+      rightWrap.style.alignItems = 'center';
+      rightWrap.style.gap = '10px';
+
+      var deleteBtn = makeEl('button', 'mini-btn');
+      deleteBtn.textContent = '🗑️ 删除';
+      deleteBtn.style.color = 'var(--danger)';
+      deleteBtn.style.borderColor = 'var(--danger)';
+      deleteBtn.dataset.key = key;
+      deleteBtn.className += ' history-delete-btn';
+      deleteBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var k = this.dataset.key;
+        deleteHistoryDay(k);  // 确认逻辑已在 deleteHistoryDay 内部
+      });
+      rightWrap.appendChild(deleteBtn);
+
+      var arrow = makeEl('span', 'history-arrow', '›');
+      rightWrap.appendChild(arrow);
+
+      item.appendChild(rightWrap);
+      list.appendChild(item);
+    });
+  }
+
+  historyBody.innerHTML = '';
+  historyBody.appendChild(list);
+}
+
+    function deleteHistoryDay(key) {
+  showConfirm('确定要删除 ' + fmtKey(key) + ' 的记录吗？此操作不可撤销！', { type: 'danger' }).then(function(confirmed) {
+    if (confirmed) {
+      storage.removeItem('dplan.v1.day.' + key);
+      renderHistoryList();
+    }
+  });
+}
+
+    function openDay(key) {
+      closeReminderOverlay();
+      loadDay(key);
+      renderDate();
+      renderBlocks('actual');
+      renderBlocks('general');
+      renderGoals();
+      renderRoutines();
+      renderCardStatusCapsule();
+      showView('today');
+    }
+
+    var solarTermCache = {};
+    function solarTermMap(year) {
+      if (solarTermCache[year]) return solarTermCache[year];
+      var map = {};
+      for (var n = 0; n < 24; n++) {
+        var off = new Date((31556925974.7 * (year - 1900) + TERM_MINUTES[n] * 60000) + Date.UTC(1900, 0, 6, 2, 5));
+        map[year + '-' + pad2(off.getUTCMonth() + 1) + '-' + pad2(off.getUTCDate())] = SOLAR_TERMS[n];
+      }
+      solarTermCache[year] = map;
+      return map;
+    }
+
+    function renderCalendar() {
+      $('#calendarMonth').textContent = calendar.year + '年' + (calendar.month + 1) + '月';
+      var first = new Date(calendar.year, calendar.month, 1).getDay();
+      var days = new Date(calendar.year, calendar.month + 1, 0).getDate();
+      var terms = solarTermMap(calendar.year);
+      var grid = $('#calendarGrid');
+      grid.innerHTML = '';
+
+      for (var i = 0; i < first; i++) grid.appendChild(makeEl('div', 'calendar-cell empty'));
+      for (var d = 1; d <= days; d++) {
+        var date = new Date(calendar.year, calendar.month, d);
+        var key = dateKey(date);
+        var cell = makeEl('div', 'calendar-cell');
+        cell.dataset.date = key;
+        cell.title = key + ' · 双击进入当日计划';
+        cell.appendChild(makeEl('div', 'calendar-day', String(d)));
+        if (date.getDay() === 0 || date.getDay() === 6) cell.classList.add('weekend');
+        if (key === todayKey()) cell.classList.add('today');
+
+        var labels = [];
+        if (terms[key]) labels.push(terms[key]);
+        if (HOLIDAYS[key]) labels.push(HOLIDAYS[key]);
+        if (labels.length) cell.appendChild(makeEl('div', 'calendar-badge', labels.join(' · ')));
+
+        if (importantDates[key] && importantDates[key].length > 0) {
+          var barsWrap = makeEl('div', 'calendar-important-bars');
+          importantDates[key].slice(0, 3).forEach(function (item) {
+            var bar = makeEl('span', 'calendar-important-bar');
+            bar.style.background = item.color || '#ef4444';
+            barsWrap.appendChild(bar);
+          });
+          cell.appendChild(barsWrap);
+          cell.classList.add('reminder');
+        }
+        grid.appendChild(cell);
+      }
+    }
+
+    function reminderDateMap() {
+      var map = {};
+      state.todos.forEach(function (todo) {
+        if (todo.dueDate && !todo.done) map[todo.dueDate] = true;
+      });
+      Object.keys(importantDates).forEach(function (key) {
+        map[key] = true;
+      });
+      return map;
+    }
+
+    function renderReminderForDate(key) {
+      $('#reminderTitle').textContent = '当日提醒 · ' + fmtKey(key);
+      var body = $('#reminderBody');
+      body.innerHTML = '';
+      var wrap = makeEl('div');
+      var todos = state.todos.filter(function (t) { return t.dueDate === key && !t.done; });
+      if (todos.length) {
+        var todoSection = makeEl('section', 'detail-section');
+        todoSection.appendChild(makeEl('h3', '', '待办截止'));
+        var list = makeEl('ul', 'detail-list');
+        todos.forEach(function (todo) {
+          var li = makeEl('li');
+          li.appendChild(makeEl('span', 'detail-goal-mark', '⏳'));
+          li.appendChild(makeEl('span', '', todo.text + '（' + QUADRANT_LABELS[todo.quadrant] + '）'));
+          list.appendChild(li);
+        });
+        todoSection.appendChild(list);
+        wrap.appendChild(todoSection);
+      }
+      if (importantDates[key] && importantDates[key].length > 0) {
+        var importantSection = makeEl('section', 'detail-section');
+        importantSection.appendChild(makeEl('h3', '', '重要日期'));
+        var list = makeEl('ul', 'detail-list');
+        importantDates[key].forEach(function (item, idx) {
+          var li = makeEl('li');
+          var dot = makeEl('span', 'detail-goal-mark');
+          dot.textContent = '📌';
+          dot.style.color = item.color || '#ef4444';
+          li.appendChild(dot);
+          li.appendChild(makeEl('span', '', item.title));
+          var remove = makeEl('button', 'mini-btn', '删除');
+          remove.type = 'button';
+          remove.dataset.action = 'remove-important';
+          remove.dataset.date = key;
+          remove.dataset.idx = idx;
+          li.appendChild(remove);
+          list.appendChild(li);
+        });
+        importantSection.appendChild(list);
+        wrap.appendChild(importantSection);
+      }
+      if (!todos.length && (!importantDates[key] || importantDates[key].length === 0)) {
+        wrap.appendChild(makeEl('p', 'empty-text', '这一天没有提醒事项。'));
+      }
+      body.appendChild(wrap);
+    }
+
+    function openReminderForDate(key) {
+      renderReminderForDate(key);
+      $('#reminderOverlay').classList.remove('hidden');
+    }
+
+    function closeReminderOverlay() { $('#reminderOverlay').classList.add('hidden'); }
+
+    var calendarTooltip = $('#calendarTooltip');
+    function hideCalendarTooltip() {
+      calendarTooltip.classList.add('hidden');
+    }
+    function showCalendarTooltip(cell) {
+      var key = cell.dataset.date;
+      calendarTooltip.innerHTML = '';
+      calendarTooltip.appendChild(makeEl('div', 'calendar-tooltip-title', fmtKey(key)));
+      var todos = state.todos.filter(function (t) { return t.dueDate === key && !t.done; });
+      todos.forEach(function (todo) {
+        calendarTooltip.appendChild(makeEl('div', 'calendar-tooltip-item', '⏳ ' + todo.text));
+      });
+      if (importantDates[key] && importantDates[key].length > 0) {
+        importantDates[key].forEach(function (item) {
+          var el = makeEl('div', 'calendar-tooltip-item');
+          el.style.borderLeft = '3px solid ' + (item.color || '#ef4444');
+          el.style.paddingLeft = '6px';
+          el.textContent = '📌 ' + item.title;
+          calendarTooltip.appendChild(el);
+        });
+      }
+      if (todos.length === 0 && (!importantDates[key] || importantDates[key].length === 0)) {
+        calendarTooltip.appendChild(makeEl('p', 'calendar-tooltip-empty', '当日无提醒事项'));
+      }
+      calendarTooltip.classList.remove('hidden');
+      var rect = cell.getBoundingClientRect();
+      var tooltipWidth = calendarTooltip.offsetWidth;
+      var tooltipHeight = calendarTooltip.offsetHeight;
+      var left = rect.right + 8;
+      var top = rect.top;
+      if (left + tooltipWidth > window.innerWidth - 8) left = rect.left - tooltipWidth - 8;
+      if (left < 8) left = rect.right + 8;
+      if (top + tooltipHeight > window.innerHeight - 8) top = window.innerHeight - tooltipHeight - 8;
+      if (top < 8) top = 8;
+      calendarTooltip.style.left = left + 'px';
+      calendarTooltip.style.top = top + 'px';
+    }
+
+    function fmtKey(key) {
+      var d = parseKey(key);
+      return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + WEEKDAYS[d.getDay()];
+    }
+
+    function fmtDuration(seconds) {
+      var total = Math.max(0, Math.floor(seconds || 0));
+      return pad2(Math.floor(total / 60)) + ':' + pad2(total % 60);
+    }
+
+    function buildTodoItem(todo) {
+      var item = makeEl('div', 'todo-item');
+      item.dataset.id = todo.id;
+      var top = makeEl('div', 'todo-item-top');
+      top.appendChild(makeEl('span', 'todo-text', todo.text));
+
+      var actions = makeEl('div', 'todo-actions');
+      var doneBtn = makeEl('button', 'mini-btn done-btn', '✓');
+      doneBtn.type = 'button';
+      doneBtn.dataset.action = 'todo-complete';
+      doneBtn.dataset.id = todo.id;
+      doneBtn.title = '标记完成';
+      actions.appendChild(doneBtn);
+
+      var del = makeEl('button', 'mini-icon', '×');
+      del.type = 'button';
+      del.dataset.action = 'todo-delete';
+      del.dataset.id = todo.id;
+      del.title = '删除待办';
+      actions.appendChild(del);
+      top.appendChild(actions);
+      item.appendChild(top);
+
+      var meta = makeEl('div', 'todo-meta');
+      if (todo.dueDate) meta.appendChild(makeEl('span', 'meta-chip', '📅 ' + todo.dueDate));
+      if (todo.estimate) meta.appendChild(makeEl('span', 'meta-chip', '⏳ ' + todo.estimate + '分钟'));
+      (todo.tags || []).forEach(function (tag) {
+        if (tag) meta.appendChild(makeEl('span', 'meta-chip tag', '#' + tag));
+      });
+      var noteBtn = makeEl('button', 'mini-btn', '📝 备注');
+      noteBtn.type = 'button';
+      noteBtn.dataset.action = 'note-open';
+      noteBtn.dataset.id = todo.id;
+      meta.appendChild(noteBtn);
+      item.appendChild(meta);
+
+      if (todo.metricType === 'timer') {
+        var metric = makeEl('div', 'todo-metric timer');
+        var total = (todo.targetValue || 0) * 60;
+        var pct = total > 0 ? Math.min(100, Math.round((todo.metricValue || 0) / total * 100)) : 0;
+
+        var bar = makeEl('span', 'progress');
+        var fill = makeEl('span', 'progress-fill');
+        fill.style.width = pct + '%';
+        bar.appendChild(fill);
+
+        var text = makeEl('span', 'metric-text', '⏱️ ' + fmtDuration(todo.metricValue) + '/' + (todo.targetValue || 0) + 'min');
+
+        var toggle = makeEl('button', 'mini-btn', runningTimers[todo.id] ? '⏸暂停' : '▶开始');
+        toggle.type = 'button';
+        toggle.dataset.action = 'timer-toggle';
+        toggle.dataset.id = todo.id;
+
+        var reset = makeEl('button', 'mini-btn', '↺重置');
+        reset.type = 'button';
+        reset.dataset.action = 'timer-reset';
+        reset.dataset.id = todo.id;
+
+        metric.append(toggle, text, bar, reset);
+        item.appendChild(metric);
+      } else if (todo.metricType === 'counter') {
+        var metric = makeEl('div', 'todo-metric counter');
+        var minus = makeEl('button', 'mini-btn', '-1');
+        minus.type = 'button';
+        minus.dataset.action = 'counter-minus';
+        minus.dataset.id = todo.id;
+
+        var plus = makeEl('button', 'mini-btn', '+1');
+        plus.type = 'button';
+        plus.dataset.action = 'counter-plus';
+        plus.dataset.id = todo.id;
+
+        var text = makeEl('span', 'metric-text', '📊 ' + (todo.metricValue || 0) + '/' + (todo.targetValue || 0) + '次');
+
+        var reset = makeEl('button', 'mini-btn', '重置');
+        reset.type = 'button';
+        reset.dataset.action = 'counter-reset';
+        reset.dataset.id = todo.id;
+
+        metric.append(minus, plus, text, reset);
+        item.appendChild(metric);
+      }
+      return item;
+    }
+
+    function renderTagFilter() {
+      var container = $('#tagFilter');
+      container.innerHTML = '';
+      var allBtn = makeEl('button', 'tag-filter-btn' + (tagFilter === 'all' ? ' active' : ''), '全部');
+      allBtn.type = 'button';
+      allBtn.dataset.tag = 'all';
+      container.appendChild(allBtn);
+      allTags().forEach(function (tag) {
+        var btn = makeEl('button', 'tag-filter-btn' + (tagFilter === tag ? ' active' : ''));
+        btn.type = 'button';
+        btn.dataset.tag = tag;
+        btn.appendChild(makeEl('span', '', '#' + tag));
+        btn.appendChild(makeEl('span', 'tag-x', '✕'));
+        container.appendChild(btn);
+      });
+    }
+
+    function renderTodos() {
+      renderTagFilter();
+      matrixEl.innerHTML = '';
+      QUADRANT_ORDER.forEach(function (q) {
+        var cell = makeEl('section', 'quadrant-cell q' + q);
+        var head = makeEl('div', 'quadrant-head');
+        head.appendChild(makeEl('h2', '', QUADRANT_LABELS[q]));
+        head.appendChild(makeEl('span', '', QUADRANT_SUB[q]));
+        cell.appendChild(head);
+
+        var list = makeEl('div', 'quadrant-list');
+        var items = state.todos.filter(function (t) {
+          return t.quadrant === q && !t.done && (tagFilter === 'all' || (t.tags || []).indexOf(tagFilter) >= 0);
+        });
+        if (items.length === 0) {
+          list.appendChild(makeEl('p', 'empty-mini', '暂无事项'));
+        } else {
+          items.forEach(function (todo) { list.appendChild(buildTodoItem(todo)); });
+        }
+        cell.appendChild(list);
+        matrixEl.appendChild(cell);
+      });
+
+      var active = state.todos.filter(function (t) { return !t.done; });
+      $('#todoSummaryLine').textContent = active.length + ' 项待办';
+      renderCompleted();
+      renderDueTaskList();
+    }
+
+    function renderCompleted() {
+      var doneTodos = state.todos.filter(function (t) { return t.done; });
+      $('#completedCount').textContent = doneTodos.length;
+      var body = $('#completedBody');
+      body.innerHTML = '';
+
+      if (doneTodos.length === 0) {
+        body.appendChild(makeEl('p', 'empty-text', '还没有已完成任务。'));
+        return;
+      }
+
+      var groups = {};
+      doneTodos.forEach(function (todo) {
+        var key = todo.tags && todo.tags.length ? todo.tags.join(', ') : '未分类';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(todo);
+      });
+
+      Object.keys(groups).forEach(function (tag) {
+        var group = makeEl('div', 'completed-group');
+        group.appendChild(makeEl('h3', 'completed-group-title', tag));
+        groups[tag].forEach(function (todo) {
+          var item = makeEl('div', 'completed-item');
+          item.appendChild(makeEl('span', 'completed-text', todo.text));
+          var restore = makeEl('button', 'mini-btn restore-btn', '恢复');
+          restore.type = 'button';
+          restore.dataset.action = 'restore-todo';
+          restore.dataset.id = todo.id;
+          item.appendChild(restore);
+          group.appendChild(item);
+        });
+        body.appendChild(group);
+      });
+    }
+
+    function renderDueTaskList() {
+      var container = $('#dueTaskList');
+      container.innerHTML = '';
+      var today = todayKey();
+      var items = state.todos.filter(function (t) {
+        return t.dueDate && !t.done && t.dueDate >= today;
+      }).sort(function (a, b) {
+        return String(a.dueDate).localeCompare(String(b.dueDate));
+      }).slice(0, 10);
+
+      if (items.length === 0) {
+        container.appendChild(makeEl('p', 'empty-text', '暂无即将到期的任务'));
+        return;
+      }
+
+      items.forEach(function (todo) {
+        var row = makeEl('div', 'due-task-item');
+        var d = parseKey(todo.dueDate);
+        row.appendChild(makeEl('span', 'due-date', pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())));
+        var main = makeEl('div', 'due-task-main');
+        main.appendChild(makeEl('div', 'due-task-text', todo.text));
+        if (todo.tags && todo.tags.length) {
+          var tags = makeEl('div', 'due-task-tags');
+          todo.tags.forEach(function (tag) {
+            tags.appendChild(makeEl('span', 'meta-chip tag', '#' + tag));
+          });
+          main.appendChild(tags);
+        }
+        row.appendChild(main);
+        container.appendChild(row);
+      });
+    }
+
+    function renderImportantDatesList() {
+      var container = $('#importantDatesList');
+      if (!container) return;
+      container.innerHTML = '';
+      var today = todayKey();
+      var list = [];
+      Object.keys(importantDates).forEach(function (key) {
+        if (key >= today && importantDates[key].length > 0) {
+          importantDates[key].forEach(function (item) {
+            list.push({ date: key, title: item.title, color: item.color || '#ef4444' });
+          });
+        }
+      });
+      list.sort(function (a, b) { return a.date.localeCompare(b.date); });
+      list = list.slice(0, 10);
+
+      if (list.length === 0) {
+        container.appendChild(makeEl('p', 'empty-text', '暂无重要日期'));
+        return;
+      }
+      list.forEach(function (item) {
+        var row = makeEl('div', 'important-date-item');
+        var dot = makeEl('span', 'important-date-color');
+        dot.style.background = item.color;
+        row.appendChild(dot);
+        var d = parseKey(item.date);
+        row.appendChild(makeEl('span', 'important-date-item-date', pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())));
+        row.appendChild(makeEl('span', 'important-date-item-title', item.title));
+        var del = makeEl('button', 'important-date-delete', '×');
+        del.type = 'button';
+        del.title = '删除';
+        del.dataset.date = item.date;
+        del.dataset.title = item.title;
+        del.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var arr = importantDates[item.date] || [];
+          importantDates[item.date] = arr.filter(function (x) { return x.title !== item.title; });
+          if (importantDates[item.date].length === 0) delete importantDates[item.date];
+          saveJSON('dplan.v1.important_dates', importantDates);
+          renderImportantDatesList();
+          renderCalendar();
+        });
+        row.appendChild(del);
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function () {
+          openDay(item.date);
+        });
+        container.appendChild(row);
+      });
+    }
+
+    var runningTimers = {};
+    var tagFilter = 'all';
+
+    // 优化 Toast（右下角，更大，带绿色边框）
+function showToast(message, duration) {
+  duration = duration || 4000;
+  var toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed; bottom:30px; right:30px; max-width:400px; background:#333; color:#fff; padding:16px 28px; border-radius:10px; font-size:18px; line-height:1.5; z-index:10000; box-shadow:0 8px 24px rgba(0,0,0,0.4); opacity:0; transform:translateY(20px); transition:opacity 0.3s, transform 0.3s; pointer-events:none; border-left:5px solid #10b981;';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(function() {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+  });
+  setTimeout(function() {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(20px)';
+    setTimeout(function() {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 300);
+  }, duration);
+}
+
+// 通用确认弹窗（返回 Promise，resolve(true/false)）
+function showConfirm(message, options) {
+  options = options || {};
+  var type = options.type || 'warning'; // 'warning' | 'danger' | 'info'
+  var confirmText = options.confirmText || '确定';
+  var cancelText = options.cancelText || '取消';
+  return new Promise(function(resolve) {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center;';
+    var modal = document.createElement('div');
+    modal.style.cssText = 'background:#fff; border-radius:12px; padding:24px 28px; max-width:500px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.3); border-top:6px solid ' + (type === 'danger' ? '#e74c3c' : (type === 'warning' ? '#f39c12' : '#3498db')) + ';';
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:20px; font-weight:600; margin-bottom:16px;';
+    title.textContent = type === 'danger' ? '⚠️ 确认删除' : '提示';
+    var msg = document.createElement('p');
+    msg.style.cssText = 'font-size:18px; line-height:1.6; margin:0 0 24px; color:#333;';
+    msg.textContent = message;
+    var btnWrap = document.createElement('div');
+    btnWrap.style.cssText = 'display:flex; gap:12px; justify-content:flex-end;';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.textContent = cancelText;
+    cancelBtn.style.cssText = 'padding:12px 24px; border:1px solid #ccc; border-radius:8px; background:#fff; font-size:16px; cursor:pointer; min-height:44px;';
+    var confirmBtn = document.createElement('button');
+    confirmBtn.textContent = confirmText;
+    confirmBtn.style.cssText = 'padding:12px 24px; border:1px solid ' + (type === 'danger' ? '#e74c3c' : '#3498db') + '; border-radius:8px; background:' + (type === 'danger' ? '#e74c3c' : '#3498db') + '; color:#fff; font-size:16px; cursor:pointer; min-height:44px;';
+    btnWrap.appendChild(cancelBtn);
+    btnWrap.appendChild(confirmBtn);
+    modal.appendChild(title);
+    modal.appendChild(msg);
+    modal.appendChild(btnWrap);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    function close(result) {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      resolve(result);
+    }
+    cancelBtn.addEventListener('click', function() { close(false); });
+    confirmBtn.addEventListener('click', function() { close(true); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(false); });
+  });
+}
+
+// 通用提示弹窗（返回 Promise，点击确定后 resolve）
+function showAlert(message, type) {
+  type = type || 'info';
+  return new Promise(function(resolve) {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center;';
+    var modal = document.createElement('div');
+    modal.style.cssText = 'background:#fff; border-radius:12px; padding:24px 28px; max-width:500px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.3); border-top:6px solid ' + (type === 'danger' ? '#e74c3c' : (type === 'warning' ? '#f39c12' : '#3498db')) + ';';
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:20px; font-weight:600; margin-bottom:16px;';
+    title.textContent = type === 'danger' ? '⚠️ 错误' : (type === 'warning' ? '⚠️ 提示' : 'ℹ️ 信息');
+    var msg = document.createElement('p');
+    msg.style.cssText = 'font-size:18px; line-height:1.6; margin:0 0 24px; color:#333;';
+    msg.textContent = message;
+    var btnWrap = document.createElement('div');
+    btnWrap.style.cssText = 'display:flex; gap:12px; justify-content:flex-end;';
+    var okBtn = document.createElement('button');
+    okBtn.textContent = '确定';
+    okBtn.style.cssText = 'padding:12px 32px; border:1px solid #3498db; border-radius:8px; background:#3498db; color:#fff; font-size:16px; cursor:pointer; min-height:44px;';
+    btnWrap.appendChild(okBtn);
+    modal.appendChild(title);
+    modal.appendChild(msg);
+    modal.appendChild(btnWrap);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    function close() {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      resolve();
+    }
+    okBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+  });
+}
+
+    var importantDates = (function () {
+      var raw = loadJSON('dplan.v1.important_dates', {});
+      var migrated = {};
+      Object.keys(raw).forEach(function (key) {
+        if (typeof raw[key] === 'string') {
+          migrated[key] = [{ title: raw[key], color: '#ef4444' }];
+        } else if (Array.isArray(raw[key])) {
+          migrated[key] = raw[key];
+        } else {
+          migrated[key] = [];
+        }
+      });
+      return migrated;
+    })();
+    var calendar = { year: new Date().getFullYear(), month: new Date().getMonth() };
+
+    function findTodo(id) { return state.todos.find(function (t) { return t.id === id; }); }
+
+    function updateTimerRow(todo) {
+      var item = matrixEl.querySelector('.todo-item[data-id="' + todo.id + '"]');
+      if (!item) return;
+      var text = item.querySelector('.metric-text');
+      if (text) text.textContent = '⏱️ ' + fmtDuration(todo.metricValue) + '/' + (todo.targetValue || 0) + 'min';
+      var fill = item.querySelector('.progress-fill');
+      if (fill) {
+        var total = (todo.targetValue || 0) * 60;
+        fill.style.width = (total > 0 ? Math.min(100, Math.round((todo.metricValue || 0) / total * 100)) : 0) + '%';
+      }
+    }
+
+    function updateCounterRow(todo) {
+      var item = matrixEl.querySelector('.todo-item[data-id="' + todo.id + '"]');
+      if (!item) return;
+      var text = item.querySelector('.metric-text');
+      if (text) text.textContent = '📊 ' + (todo.metricValue || 0) + '/' + (todo.targetValue || 0) + '次';
+    }
+
+    function deleteTag(tag) {
+      state.tags = state.tags.filter(function (t) { return t !== tag; });
+      state.todos.forEach(function (todo) {
+        todo.tags = (todo.tags || []).filter(function (t) { return t !== tag; });
+      });
+      saveTags();
+      saveTodos();
+      if (tagFilter === tag) tagFilter = 'all';
+      renderTodos();
+      renderTagFilter();
+    }
+
+    function allTags() {
+      var usedTags = [];
+      state.todos.forEach(function (todo) {
+        (todo.tags || []).forEach(function (tag) {
+          if (tag && usedTags.indexOf(tag) < 0) usedTags.push(tag);
+        });
+      });
+      return usedTags;
+    }
+
+    function renderCardStatusCapsule() {
+      var targetKey = state.key || todayKey();
+      var pending = state.cards.filter(function (card) {
+        var startOk = !card.start || card.start <= targetKey;
+        var endOk = card.end >= targetKey;
+        var notChecked = card.lastUsedDate !== targetKey;
+        var hasRemaining = (card.type !== 'count') || (card.usedCount < card.totalCount);
+        return startOk && endOk && notChecked && hasRemaining;
+      }).length;
+      var d = parseKey(targetKey);
+      var label = (targetKey === todayKey()) ? '今日' : (d.getMonth()+1)+'月'+d.getDate()+'日';
+      $('#cardStatusCapsule').textContent = '💳 ' + label + ' ' + pending + ' 张卡待打卡';
+    }
+
+    function typeLabel(card) {
+      if (card.type === 'count') return '次卡';
+      return '期限卡';
+    }
+
+    function remainingDays(card) {
+      if (!card.end) return -1;
+      var end = parseKey(card.end);
+      var today = parseKey(todayKey());
+      return Math.floor((end - today) / 86400000);
+    }
+
+    function remainingText(card) {
+      var today = todayKey();
+      if (card.start && card.start > today) {
+        return '未开始';
+      }
+      if (card.type === 'count') {
+        return '剩余 ' + Math.max(0, card.totalCount - card.usedCount) + ' 次';
+      }
+      var days = remainingDays(card);
+      if (days < 0) return '已过期';
+      if (days === 0) return '今天到期';
+      return '剩余 ' + days + ' 天';
+    }
+
+    function costText(card) {
+      if (!card.cost) return '';
+      if (card.type === 'count') {
+        var per = card.totalCount > 0 ? card.cost / card.totalCount : card.cost;
+        return '均次 ¥' + per.toFixed(2);
+      }
+      var start = card.start ? parseKey(card.start) : parseKey(card.end || todayKey());
+      var end = parseKey(card.end);
+      var days = Math.max(1, Math.round((end - start) / 86400000) + 1);
+      return '日均 ¥' + (card.cost / days).toFixed(2);
+    }
+
+    function expiredUnused(card) {
+      var today = todayKey();
+      if (card.end && today > card.end) {
+        if (card.type === 'count') return card.usedCount < card.totalCount;
+        return !card.lastUsedDate;
+      }
+      return false;
+    }
+
+    function toggleCheckin(id) {
+      var card = state.cards.find(function (c) { return c.id === id; });
+      if (!card) return;
+      var targetDate = state.key || todayKey();
+      if (card.start && card.start > targetDate) return;
+      if (card.type === 'count' && card.usedCount >= card.totalCount) return;
+
+      if (card.lastUsedDate === targetDate) {
+        card.lastUsedDate = '';
+        if (card.type === 'count') {
+          card.usedCount = Math.max(0, (card.usedCount || 0) - 1);
+        }
+      } else {
+        card.lastUsedDate = targetDate;
+        if (card.type === 'count') {
+          card.usedCount = (card.usedCount || 0) + 1;
+        }
+      }
+      saveCards();
+      renderCards();
+      if (cardDetailId === id) renderCardDetail(id);
+    }
+
+    function renderCards() {
+      var targetDate = state.key || todayKey();
+      var allCards = state.cards.slice();
+      var validCards = allCards.filter(function(card) {
+        return card.end >= targetDate || (card.start && card.start > targetDate);
+      });
+      var expiredCards = allCards.filter(function(card) {
+        return card.end < targetDate;
+      });
+      document.getElementById('expiredCount').textContent = expiredCards.length;
+      var displayCards = state.showExpired ? expiredCards : validCards;
+
+      displayCards.sort(function (a, b) {
+        if (state.showExpired) {
+          return String(b.end).localeCompare(String(a.end));
+        } else {
+          var aStart = a.start && a.start > targetDate;
+          var bStart = b.start && b.start > targetDate;
+          if (aStart && !bStart) return 1;
+          if (!aStart && bStart) return -1;
+          var aChecked = a.lastUsedDate === targetDate;
+          var bChecked = b.lastUsedDate === targetDate;
+          if (aChecked && !bChecked) return 1;
+          if (!aChecked && bChecked) return -1;
+          return String(a.end).localeCompare(String(b.end));
+        }
+      });
+
+      var grid = $('#cardGrid');
+      grid.innerHTML = '';
+      if (displayCards.length === 0) {
+        grid.appendChild(makeEl('p', 'empty-text', state.showExpired ? '没有已过期的卡片' : '没有卡片，点击“添加卡项”创建'));
+        $('#cardsSummaryLine').textContent = allCards.length + ' 张卡';
+        renderCardStatusCapsule();
+        return;
+      }
+
+      displayCards.forEach(function (card) {
+        var item = makeEl('div', 'card-item' + (state.showExpired ? ' expired-unused' : ''));
+        if (state.showExpired) {
+          item.style.background = '#f8f9fa';
+        }
+
+        if (!state.showExpired && (!card.start || card.start <= targetDate)) {
+          var progressBar = makeEl('div', 'card-progress-bar');
+          var progressFill = makeEl('div', 'card-progress-fill');
+          var startDate = card.start ? parseKey(card.start) : parseKey(card.end);
+          var endDate = parseKey(card.end);
+          var totalDays = Math.max(1, Math.round((endDate - startDate) / 86400000) + 1);
+          var elapsedDays = Math.max(0, Math.min(totalDays, Math.round((parseKey(targetDate) - startDate) / 86400000) + 1));
+          var pct = Math.min(100, Math.round(elapsedDays / totalDays * 100));
+          progressFill.style.width = pct + '%';
+          if (pct > 80) progressFill.style.background = '#e74c3c';
+          else if (pct > 50) progressFill.style.background = '#f39c12';
+          else progressFill.style.background = '#2ecc71';
+          progressBar.appendChild(progressFill);
+          item.appendChild(progressBar);
+        }
+
+        var top = makeEl('div', 'card-item-top');
+        top.appendChild(makeEl('div', 'card-name', card.name));
+        if (!state.showExpired) {
+          top.appendChild(makeEl('span', 'card-status', card.lastUsedDate === targetDate ? '✅' : '❌'));
+        } else {
+          top.appendChild(makeEl('span', 'card-status', '🗑️'));
+        }
+        item.appendChild(top);
+
+        var meta = makeEl('div', 'card-meta');
+        meta.appendChild(makeEl('span', 'meta-chip', typeLabel(card)));
+        meta.appendChild(makeEl('span', 'meta-chip', card.end));
+        if (state.showExpired) {
+          meta.appendChild(makeEl('span', 'meta-chip', '已过期'));
+        } else {
+          meta.appendChild(makeEl('span', 'meta-chip', remainingText(card)));
+        }
+        if (costText(card)) meta.appendChild(makeEl('span', 'meta-chip', costText(card)));
+        item.appendChild(meta);
+
+        if (!state.showExpired && expiredUnused(card)) {
+          item.appendChild(makeEl('div', 'card-warning', '⚠️ 已过期·未充分利用'));
+        }
+
+        var actions = makeEl('div', 'card-actions');
+        if (state.showExpired) {
+          var restoreBtn = makeEl('button', 'mini-btn', '恢复');
+          restoreBtn.type = 'button';
+          restoreBtn.addEventListener('click', function(e) {
+  e.stopPropagation();
+  var newEnd = prompt('请输入新的截止日期 (YYYY-MM-DD)：', targetDate);
+  if (newEnd && newEnd.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    card.end = newEnd;
+    if (card.start && card.start < targetDate) {
+      card.start = targetDate;
+    }
+    saveCards();
+    renderCards();
+  } else if (newEnd !== null) {
+    showAlert('日期格式无效，请使用 YYYY-MM-DD', 'warning');
+  }
+});
+          actions.appendChild(restoreBtn);
+        } else {
+          var canCheckin = true;
+          if (card.start && card.start > targetDate) canCheckin = false;
+          if (card.type === 'count' && card.usedCount >= card.totalCount) canCheckin = false;
+
+          var isChecked = (card.lastUsedDate === targetDate);
+          var btnLabel = isChecked ? '已打卡' : '打卡';
+          var checkinBtn = makeEl('button', 'mini-btn', btnLabel);
+          checkinBtn.type = 'button';
+          if (!canCheckin) {
+            checkinBtn.disabled = true;
+            checkinBtn.textContent = '未开始';
+          } else {
+            checkinBtn.addEventListener('click', function(e) {
+              e.stopPropagation();
+              toggleCheckin(card.id);
+            });
+          }
+          actions.appendChild(checkinBtn);
+        }
+
+        var detailBtn = makeEl('button', 'mini-btn', '详情');
+        detailBtn.type = 'button';
+        detailBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          openCardDetail(card.id);
+        });
+        actions.appendChild(detailBtn);
+
+        var delBtn = makeEl('button', 'mini-btn', '删除');
+        delBtn.type = 'button';
+        delBtn.style.color = 'var(--danger)';
+        delBtn.style.borderColor = 'var(--danger)';
+        delBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (confirm('确定要删除卡“' + card.name + '”吗？')) {
+            state.cards = state.cards.filter(function(c) { return c.id !== card.id; });
+            saveCards();
+            renderCards();
+          }
+        });
+        actions.appendChild(delBtn);
+
+        item.appendChild(actions);
+        grid.appendChild(item);
+      });
+
+      $('#cardsSummaryLine').textContent = allCards.length + ' 张卡';
+      renderCardStatusCapsule();
+    }
+
+    function loadGeneralTemplates() {
+      var data = loadJSON('dplan.v1.general_templates', null);
+      if (!data || !Array.isArray(data.list) || data.list.length === 0) {
+        var list = [];
+        var result = { list: list, activeId: null };
+        saveJSON('dplan.v1.general_templates', result);
+        return result;
+      }
+      return { list: data.list, activeId: data.activeId || (data.list.length ? data.list[0].id : null) };
+    }
+
+    function saveGeneralTemplates() {
+      saveJSON('dplan.v1.general_templates', {
+        list: state.generalTemplates,
+        activeId: state.activeGeneralTemplateId
+      });
+    }
+
+    function loadTags() {
+      var saved = loadJSON('dplan.v1.tags', null);
+      if (Array.isArray(saved) && saved.length) return saved;
+      var list = PRESET_TAGS.slice();
+      saveJSON('dplan.v1.tags', list);
+      return list;
+    }
+
+    function saveTags() { saveJSON('dplan.v1.tags', state.tags); }
+
+    function ensureTags(tags) {
+      var changed = false;
+      tags.forEach(function (tag) {
+        if (tag && state.tags.indexOf(tag) < 0) {
+          state.tags.push(tag);
+          changed = true;
+        }
+      });
+      if (changed) saveTags();
+    }
+
+    function loadTodos() {
+      var list = loadJSON('dplan.v1.todos', null);
+      if (!Array.isArray(list)) return [];
+      return list.map(function (todo) {
+        return {
+          id: todo.id || uid(),
+          text: todo.text || '',
+          quadrant: todo.quadrant || 1,
+          metricType: todo.metricType || 'text',
+          metricValue: Number(todo.metricValue) || 0,
+          targetValue: Number(todo.targetValue) || 0,
+          dueDate: todo.dueDate || '',
+          estimate: Number(todo.estimate) || 0,
+          tags: Array.isArray(todo.tags) ? todo.tags : [],
+          note: todo.note || '',
+          done: !!todo.done
+        };
+      });
+    }
+
+    function saveTodos() { saveJSON('dplan.v1.todos', state.todos); }
+
+    function loadCards() {
+      var list = loadJSON('dplan.v1.cards', null);
+      if (!Array.isArray(list)) return [];
+      return list.map(function (card) {
+        return {
+          id: card.id || uid(),
+          name: card.name || '',
+          type: card.type || 'term',
+          start: card.start || '',
+          end: card.end || '',
+          totalCount: Number(card.totalCount) || 0,
+          cost: Number(card.cost) || 0,
+          note: card.note || '',
+          usedCount: Number(card.usedCount) || 0,
+          lastUsedDate: card.lastUsedDate || ''
+        };
+      });
+    }
+
+    function saveCards() { saveJSON('dplan.v1.cards', state.cards); }
+
+    function loadTimeTemplates() {
+      var data = loadJSON('dplan.v1.time_templates', null);
+      if (!data || typeof data !== 'object') {
+        return { current: { id: 'custom', name: '自定义', blocks: [] }, list: [] };
+      }
+      return {
+        current: data.current && Array.isArray(data.current.blocks) ? data.current : { id: 'custom', name: '自定义', blocks: [] },
+        list: Array.isArray(data.list) ? data.list : []
+      };
+    }
+
+    function saveTimeTemplates() {
+      saveJSON('dplan.v1.time_templates', {
+        current: state.currentTemplate,
+        list: []
+      });
+    }
+
+    function loadDay(key) {
+      state.key = key;
+      state.week = weekKey(parseKey(key));
+      var rec = loadJSON('dplan.v1.day.' + key, null);
+
+      if (rec && Array.isArray(rec.actualBlocks)) {
+        state.actualBlocks = rec.actualBlocks;
+      } else {
+        state.actualBlocks = [];
+      }
+
+      if (rec && Array.isArray(rec.routines)) {
+        state.routines = rec.routines;
+      } else {
+        var template = routinesTemplate();
+        state.routines = template.map(function (r) {
+          return { id: r.id, text: r.text, done: false };
+        });
+      }
+
+      state.goals = loadWeekGoals();
+      if (state.goals.length === 0) {
+        state.goals = [
+          { id: uid(), text: '', done: false },
+          { id: uid(), text: '', done: false },
+          { id: uid(), text: '', done: false }
+        ];
+        saveWeekGoals();
+      }
+    }
+
+    function saveToday() {
+      var dayData = {
+        actualBlocks: state.actualBlocks,
+        routines: state.routines
+      };
+      dayData.goalsSnapshot = state.goals.map(function(g) {
+        return { id: g.id, text: g.text, done: g.done };
+      });
+      saveJSON('dplan.v1.day.' + state.key, dayData);
+    }
+
+    function routinesTemplate() {
+      var list = loadJSON('dplan.v1.routines', null);
+      if (!Array.isArray(list)) {
+        list = [];
+        saveJSON('dplan.v1.routines', list);
+      }
+      return list;
+    }
+
+    function renderGeneralTemplateBar() {
+      var bar = $('#generalTemplateBar');
+      bar.innerHTML = '';
+      if (state.generalTemplates.length === 0) {
+        var emptyMsg = makeEl('span', '', '暂无模板，请点击“模板管理”创建');
+        emptyMsg.style.color = 'var(--muted)';
+        emptyMsg.style.fontSize = '13px';
+        bar.appendChild(emptyMsg);
+      } else {
+        state.generalTemplates.forEach(function (template) {
+          var btn = makeEl('button', 'general-template-btn' + (template.id === state.activeGeneralTemplateId ? ' active' : ''), template.name);
+          btn.type = 'button';
+          btn.dataset.template = template.id;
+          btn.addEventListener('click', function(e) {
+            setActiveGeneralTemplate(template.id);
+          });
+          bar.appendChild(btn);
+        });
+      }
+      var manage = makeEl('button', 'general-template-btn', '模板管理');
+      manage.type = 'button';
+      manage.id = 'generalTemplateManageBtn';
+      manage.addEventListener('click', function(e) {
+        openGeneralTemplateManager();
+      });
+      bar.appendChild(manage);
+    }
+
+    function setActiveGeneralTemplate(id) {
+      var template = state.generalTemplates.find(function (t) { return t.id === id; });
+      if (!template) return;
+      state.activeGeneralTemplateId = id;
+      state.generalBlocks = template.blocks.slice();
+      saveGeneralTemplates();
+      renderGeneralTemplateBar();
+      renderBlocks('general');
+    }
+
+    function saveGeneralBlocks() {
+      var template = state.generalTemplates.find(function (t) { return t.id === state.activeGeneralTemplateId; });
+      if (template) {
+        template.blocks = state.generalBlocks;
+        saveGeneralTemplates();
+      }
+    }
+
+    // ---------- 卡项相关 ----------
+    function openCardForm() {
+      $('#cardName').value = '';
+      document.querySelector('input[name="cardType"][value="term"]').checked = true;
+      $('#cardTotal').disabled = true;
+      $('#cardTotal').value = '';
+      $('#cardStart').value = '';
+      $('#cardEnd').value = '';
+      $('#cardCost').value = '';
+      $('#cardNote').value = '';
+      $('#cardOverlay').classList.remove('hidden');
+    }
+
+    function closeCardForm() { $('#cardOverlay').classList.add('hidden'); }
+
+    async function saveCardForm() {
+  var typeEl = document.querySelector('input[name="cardType"]:checked');
+  if (!typeEl) {
+    await showAlert('请选择卡类型（期限卡/次卡）', 'warning');
+    return;
+  }
+  var type = typeEl.value;
+  var name = $('#cardName').value.trim();
+  if (!name) {
+    await showAlert('请输入卡名称', 'warning');
+    $('#cardName').focus();
+    return;
+  }
+  var end = $('#cardEnd').value;
+  if (!end) {
+    await showAlert('请选择截止日期', 'warning');
+    $('#cardEnd').focus();
+    return;
+  }
+  var total = Number($('#cardTotal').value) || 0;
+  if (type === 'count' && total <= 0) {
+    await showAlert('次卡请填写有效的总次数（大于0）', 'warning');
+    $('#cardTotal').focus();
+    return;
+  }
+  state.cards.push({
+    id: uid(),
+    name: name,
+    type: type,
+    start: $('#cardStart').value,
+    end: end,
+    totalCount: type === 'count' ? total : 0,
+    cost: Number($('#cardCost').value) || 0,
+    note: $('#cardNote').value,
+    usedCount: 0,
+    lastUsedDate: ''
+  });
+  saveCards();
+  closeCardForm();
+  renderCards();
+}
+
+    var cardDetailId = null;
+
+    function openCardDetail(id) {
+      cardDetailId = id;
+      renderCardDetail(id);
+      var editBtn = $('#cardDetailEditBtn');
+      var cancelBtn = $('#cardDetailCancelBtn');
+      var deleteBtn = $('#cardDetailDeleteBtn');
+      var saveBtn = $('#cardDetailSaveBtn');
+      editBtn.style.display = '';
+      cancelBtn.style.display = 'none';
+      deleteBtn.style.display = 'none';
+      saveBtn.style.display = 'none';
+      editBtn.onclick = function() {
+        this.style.display = 'none';
+        cancelBtn.style.display = '';
+        deleteBtn.style.display = '';
+        saveBtn.style.display = '';
+        editCardDetail(id);
+      };
+      $('#cardDetailOverlay').classList.remove('hidden');
+    }
+
+    function renderCardDetail(id) {
+      var card = state.cards.find(function (c) { return c.id === id; });
+      if (!card) return;
+      var body = $('#cardDetailBody');
+      body.innerHTML = '';
+      var list = makeEl('ul', 'detail-list');
+      [
+        ['名称', card.name],
+        ['类型', typeLabel(card)],
+        ['有效期', (card.start || '') + ' 至 ' + (card.end || '')],
+        ['剩余', remainingText(card)],
+        ['今日是否已用', card.lastUsedDate === todayKey() ? '✅ 已使用' : '❌ 未使用'],
+        ['费用', '¥' + (card.cost || 0)],
+        ['费用效率', costText(card) || '未填写费用']
+      ].forEach(function (pair) {
+        var li = makeEl('li');
+        li.appendChild(makeEl('span', '', pair[0]));
+        li.appendChild(makeEl('span', '', pair[1]));
+        list.appendChild(li);
+      });
+      if (card.note) {
+        var noteLi = makeEl('li');
+        noteLi.appendChild(makeEl('span', '', '备注'));
+        noteLi.appendChild(makeEl('span', '', card.note));
+        list.appendChild(noteLi);
+      }
+      body.appendChild(list);
+    }
+
+    function editCardDetail(id) {
+      var card = state.cards.find(function (c) { return c.id === id; });
+      if (!card) return;
+      var body = $('#cardDetailBody');
+      body.innerHTML = '';
+
+      var fields = [
+        { label: '名称', key: 'name', type: 'text' },
+        { label: '类型', key: 'type', type: 'select' },
+        { label: '开始日期', key: 'start', type: 'date' },
+        { label: '截止日期', key: 'end', type: 'date' },
+        { label: '总次数（次卡填写）', key: 'totalCount', type: 'number' },
+        { label: '费用', key: 'cost', type: 'number' },
+        { label: '备注', key: 'note', type: 'textarea' }
+      ];
+
+      var totalCountDiv = null;
+
+      fields.forEach(function (field) {
+        var div = makeEl('div', 'edit-field');
+        div.appendChild(makeEl('label', '', field.label));
+        var input;
+
+        if (field.type === 'textarea') {
+          input = makeEl('textarea', '');
+          input.value = card[field.key] || '';
+        } else if (field.type === 'select') {
+          input = makeEl('select', '');
+          var options = [
+            { value: 'term', label: '期限卡' },
+            { value: 'count', label: '次卡' }
+          ];
+          var currentType = (card.type === 'count') ? 'count' : 'term';
+          options.forEach(function(opt) {
+            var option = makeEl('option', '', opt.label);
+            option.value = opt.value;
+            if (currentType === opt.value) option.selected = true;
+            input.appendChild(option);
+          });
+          input.addEventListener('change', function() {
+            if (totalCountDiv) {
+              totalCountDiv.style.display = (this.value === 'count') ? '' : 'none';
+            }
+          });
+        } else if (field.type === 'date') {
+          input = makeEl('input', '');
+          input.type = 'date';
+          input.value = card[field.key] || '';
+        } else if (field.type === 'number') {
+          input = makeEl('input', '');
+          input.type = 'number';
+          input.value = card[field.key] || 0;
+          if (field.key === 'totalCount') {
+            totalCountDiv = div;
+            var currentTypeForCount = (card.type === 'count') ? 'count' : 'term';
+            if (currentTypeForCount !== 'count') {
+              div.style.display = 'none';
+            }
+          }
+        } else {
+          input = makeEl('input', '');
+          input.type = 'text';
+          input.value = card[field.key] || '';
+        }
+
+        if (field.type !== 'select') {
+          input.dataset.key = field.key;
+          input.id = 'cardEdit_' + field.key;
+        } else {
+          input.dataset.key = field.key;
+          input.id = 'cardEdit_type';
+        }
+        div.appendChild(input);
+        body.appendChild(div);
+      });
+
+      var deleteBtn = $('#cardDetailDeleteBtn');
+      deleteBtn.style.display = '';
+    }
+
+    function closeCardDetail() {
+      cardDetailId = null;
+      $('#cardDetailOverlay').classList.add('hidden');
+      var editBtn = $('#cardDetailEditBtn');
+      var cancelBtn = $('#cardDetailCancelBtn');
+      var deleteBtn = $('#cardDetailDeleteBtn');
+      var saveBtn = $('#cardDetailSaveBtn');
+      editBtn.style.display = '';
+      cancelBtn.style.display = 'none';
+      deleteBtn.style.display = 'none';
+      saveBtn.style.display = 'none';
+    }
+
+    function deleteCard(id) {
+  showConfirm('⚠️ 确定要删除这张卡吗？此操作不可撤销！', { type: 'danger' }).then(function(confirmed) {
+    if (confirmed) {
+      state.cards = state.cards.filter(function (c) { return c.id !== id; });
+      saveCards();
+      closeCardDetail();
+      renderCards();
+    }
+  });
+}
+
+    // ---------- 状态和初始化 ----------
+    var state = {
+      view: 'today',
+      key: '',
+      week: '',
+      generalBlocks: [],
+      actualBlocks: [],
+      goals: [],
+      routines: [],
+      todos: [],
+      tags: [],
+      cards: [],
+      generalTemplates: [],
+      activeGeneralTemplateId: null,
+      currentTemplate: { id: 'custom', name: '自定义', blocks: [] },
+      showExpired: false
+    };
+
+    var generalTemplateData = loadGeneralTemplates();
+    state.generalTemplates = generalTemplateData.list;
+    state.activeGeneralTemplateId = generalTemplateData.activeId;
+    state.generalBlocks = (state.generalTemplates.find(function (t) { return t.id === state.activeGeneralTemplateId; }) || { blocks: [] }).blocks.slice();
+    state.todos = loadTodos();
+    state.tags = loadTags();
+    state.cards = loadCards();
+    state.currentTemplate = loadTimeTemplates().current;
+
+    var actualBlocksEl = $('#actualBlocks');
+    var generalBlocksEl = $('#generalBlocks');
+    var goalsEl = $('#goals');
+    var routinesEl = $('#routines');
+    var matrixEl = $('#todoMatrix');
+
+    loadDay(todayKey());
+    renderDate();
+    renderBlocks('actual');
+    renderBlocks('general');
+    renderTemplateBar();
+    renderGeneralTemplateBar();
+    renderGoals();
+    renderRoutines();
+    applyGeneralCollapse();
+    applySectionCollapse('goalsPanel', 'toggleGoalsBtn', 'dplan.v1.ui.goalsCollapsed');
+    applySectionCollapse('routinesPanel', 'toggleRoutinesBtn', 'dplan.v1.ui.routinesCollapsed');
+    renderCardStatusCapsule();
+    showView('today');
+
+    // ========== 事件绑定 ==========
+    enableDragSort(goalsEl, function () { return state.goals; }, function (list) { state.goals = list; }, function () {
+      saveWeekGoals();
+    }, renderGoals);
+
+    enableDragSort(routinesEl, function () { return state.routines; }, function (list) { state.routines = list; }, function () {
+      saveToday();
+      var template = routinesTemplate();
+      var order = state.routines.map(function (r) { return r.id; });
+      template.sort(function (a, b) {
+        return order.indexOf(a.id) - order.indexOf(b.id);
+      });
+      saveJSON('dplan.v1.routines', template);
+    }, renderRoutines);
+
+    $('#addActualBtn').addEventListener('click', function () { addBlock('actual'); });
+    $('#addGeneralBtn').addEventListener('click', function () { addBlock('general'); });
+    $('#copyGeneralBtn').addEventListener('click', function () {
+      state.actualBlocks = state.generalBlocks.map(function (b) {
+        return { id: uid(), start: b.start, end: b.end, title: b.title, color: b.color || '#e3bd57', emoji: b.emoji || '📌' };
+      });
+      renderBlocks('actual');
+      renderTemplateBar();
+      saveToday();
+      saveGeneralBlocks();
+    });
+
+    actualBlocksEl.addEventListener('input', function (event) {
+      var input = event.target.closest('input[data-id][data-field]');
+      if (!input) return;
+      var block = state.actualBlocks.find(function (b) { return b.id === input.dataset.id; });
+      if (!block) return;
+      block[input.dataset.field] = input.value;
+      if (input.dataset.field === 'start' || input.dataset.field === 'end') {
+        state.actualBlocks = sortBlocks(state.actualBlocks);
+        renderBlocks('actual');
+        var restored = actualBlocksEl.querySelector('input[data-id="' + block.id + '"][data-field="' + input.dataset.field + '"]');
+        if (restored) restored.focus();
+      } else if (input.dataset.field === 'color') {
+        var row = actualBlocksEl.querySelector('.block-row[data-id="' + block.id + '"]');
+        if (row) row.style.borderLeftColor = block.color;
+      }
+      markCurrentTemplateCustom();
+      saveToday();
+    });
+
+    actualBlocksEl.addEventListener('click', function (event) {
+      var btn = event.target.closest('button[data-action="delete-block"]');
+      if (!btn) return;
+      state.actualBlocks = state.actualBlocks.filter(function (b) { return b.id !== btn.dataset.id; });
+      renderBlocks('actual');
+      markCurrentTemplateCustom();
+      saveToday();
+    });
+
+    generalBlocksEl.addEventListener('input', function (event) {
+      var input = event.target.closest('input[data-id][data-field]');
+      if (!input) return;
+      var block = state.generalBlocks.find(function (b) { return b.id === input.dataset.id; });
+      if (!block) return;
+      block[input.dataset.field] = input.value;
+      if (input.dataset.field === 'start' || input.dataset.field === 'end') {
+        state.generalBlocks = sortBlocks(state.generalBlocks);
+        renderBlocks('general');
+        var restored = generalBlocksEl.querySelector('input[data-id="' + block.id + '"][data-field="' + input.dataset.field + '"]');
+        if (restored) restored.focus();
+      } else if (input.dataset.field === 'color') {
+        var row = generalBlocksEl.querySelector('.block-row[data-id="' + block.id + '"]');
+        if (row) row.style.borderLeftColor = block.color;
+      }
+      saveGeneralBlocks();
+    });
+
+    generalBlocksEl.addEventListener('click', function (event) {
+      var btn = event.target.closest('button[data-action="delete-block"]');
+      if (!btn) return;
+      state.generalBlocks = state.generalBlocks.filter(function (b) { return b.id !== btn.dataset.id; });
+      renderBlocks('general');
+      saveGeneralBlocks();
+    });
+
+    goalsEl.addEventListener('input', function (event) {
+      var input = event.target.closest('input[data-id]');
+      if (!input) return;
+      var goal = state.goals.find(function (g) { return g.id === input.dataset.id; });
+      if (!goal) return;
+      goal.text = input.value;
+      saveWeekGoals();
+    });
+
+    goalsEl.addEventListener('click', function (event) {
+      var btn = event.target.closest('button[data-action]');
+      if (!btn) return;
+      var goal = state.goals.find(function (g) { return g.id === btn.dataset.id; });
+      if (!goal) return;
+      if (btn.dataset.action === 'toggle-goal') {
+        goal.done = !goal.done;
+        renderGoals();
+        saveWeekGoals();
+      } else if (btn.dataset.action === 'delete-goal') {
+        state.goals = state.goals.filter(function (g) { return g.id !== btn.dataset.id; });
+        renderGoals();
+        saveWeekGoals();
+      }
+    });
+
+    $('#addGoalBtn').addEventListener('click', function () {
+      state.goals.push({ id: uid(), text: '', done: false });
+      renderGoals();
+      saveWeekGoals();
+      var inputs = goalsEl.querySelectorAll('.goal-input');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    });
+
+    routinesEl.addEventListener('input', function (event) {
+      var input = event.target.closest('input[data-id]');
+      if (!input) return;
+      var routine = state.routines.find(function (r) { return r.id === input.dataset.id; });
+      if (!routine) return;
+      routine.text = input.value;
+      var template = routinesTemplate();
+      var t = template.find(function (r) { return r.id === input.dataset.id; });
+      if (t) {
+        t.text = input.value;
+        saveJSON('dplan.v1.routines', template);
+      }
+      saveToday();
+    });
+
+    routinesEl.addEventListener('click', function (event) {
+      var btn = event.target.closest('button[data-action]');
+      if (!btn) return;
+      var id = btn.dataset.id;
+      if (btn.dataset.action === 'toggle-routine') {
+        var routine = state.routines.find(function (r) { return r.id === id; });
+        if (!routine) return;
+        routine.done = !routine.done;
+        renderRoutines();
+        saveToday();
+      } else if (btn.dataset.action === 'delete-routine') {
+        state.routines = state.routines.filter(function (r) { return r.id !== id; });
+        saveJSON('dplan.v1.routines', routinesTemplate().filter(function (r) { return r.id !== id; }));
+        renderRoutines();
+        saveToday();
+      }
+    });
+
+    $('#addRoutineBtn').addEventListener('click', function () {
+      var routine = { id: uid(), text: '' };
+      state.routines.push({ id: routine.id, text: routine.text, done: false });
+      var template = routinesTemplate();
+      template.push(routine);
+      saveJSON('dplan.v1.routines', template);
+      renderRoutines();
+      saveToday();
+      var inputs = routinesEl.querySelectorAll('.routine-input');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    });
+
+    $('#toggleGeneralBtn').addEventListener('click', function () {
+      toggleSectionCollapse('generalPanel', 'toggleGeneralBtn', 'dplan.v1.ui.generalCollapsed');
+    });
+
+    $('#toggleGoalsBtn').addEventListener('click', function () {
+      toggleSectionCollapse('goalsPanel', 'toggleGoalsBtn', 'dplan.v1.ui.goalsCollapsed');
+    });
+
+    $('#toggleRoutinesBtn').addEventListener('click', function () {
+      toggleSectionCollapse('routinesPanel', 'toggleRoutinesBtn', 'dplan.v1.ui.routinesCollapsed');
+    });
+
+    function openGeneralTemplateManager() {
+      var body = $('#generalTemplateBody');
+      body.innerHTML = '';
+      var list = makeEl('div', 'template-preview-list');
+      if (state.generalTemplates.length === 0) {
+        list.appendChild(makeEl('p', 'empty-text', '暂无模板，请新增自定义模板'));
+      } else {
+        state.generalTemplates.forEach(function (template) {
+          var row = makeEl('div', 'template-preview-item');
+          row.appendChild(makeEl('span', '', template.name + (template.id === state.activeGeneralTemplateId ? '（当前）' : '')));
+          var actions = makeEl('div', 'card-actions');
+          var select = makeEl('button', 'mini-btn', '选用');
+          select.type = 'button';
+          select.dataset.action = 'select-general-template';
+          select.dataset.id = template.id;
+          actions.appendChild(select);
+          var del = makeEl('button', 'mini-btn', '删除');
+          del.type = 'button';
+          del.dataset.action = 'delete-general-template';
+          del.dataset.id = template.id;
+          actions.appendChild(del);
+          row.appendChild(actions);
+          list.appendChild(row);
+        });
+      }
+      body.appendChild(list);
+
+      var addWrap = makeEl('div', 'edit-field');
+      addWrap.appendChild(makeEl('label', '', '新增自定义模板'));
+      var addGrid = makeEl('div', 'edit-grid');
+      var nameInput = makeEl('input', '');
+      nameInput.id = 'newGeneralTemplateName';
+      nameInput.type = 'text';
+      nameInput.placeholder = '输入模板名称';
+      var copySelect = makeEl('select', '');
+      copySelect.id = 'copyGeneralTemplateSource';
+      var blankOption = makeEl('option', '', '从空白开始');
+      blankOption.value = '';
+      copySelect.appendChild(blankOption);
+      state.generalTemplates.forEach(function (template) {
+        var option = makeEl('option', '', '复制：' + template.name);
+        option.value = template.id;
+        copySelect.appendChild(option);
+      });
+      addGrid.appendChild(nameInput);
+      addGrid.appendChild(copySelect);
+      addWrap.appendChild(addGrid);
+      var addBtn = makeEl('button', 'text-btn', '新增模板');
+      addBtn.type = 'button';
+      addBtn.id = 'addGeneralTemplateBtn';
+      addWrap.appendChild(addBtn);
+      body.appendChild(addWrap);
+      $('#generalTemplateOverlay').classList.remove('hidden');
+    }
+
+    $('#generalTemplateBody').addEventListener('click', function (event) {
+      if (event.target.closest('#addGeneralTemplateBtn')) {
+        var name = $('#newGeneralTemplateName').value.trim();
+        if (!name) return;
+        var copyId = $('#copyGeneralTemplateSource').value;
+        var source = state.generalTemplates.find(function (t) { return t.id === copyId; });
+        var blocks = source ? source.blocks.map(function (b) {
+          return { id: uid(), start: b.start, end: b.end, title: b.title, color: b.color };
+        }) : [];
+        var template = { id: uid(), name: name, blocks: blocks };
+        state.generalTemplates.push(template);
+        state.activeGeneralTemplateId = template.id;
+        state.generalBlocks = blocks;
+        saveGeneralTemplates();
+        renderGeneralTemplateBar();
+        renderBlocks('general');
+        $('#generalTemplateOverlay').classList.add('hidden');
+        return;
+      }
+      var btn = event.target.closest('button[data-action]');
+      if (!btn) return;
+      if (btn.dataset.action === 'select-general-template') setActiveGeneralTemplate(btn.dataset.id);
+      else if (btn.dataset.action === 'delete-general-template') {
+        state.generalTemplates = state.generalTemplates.filter(function (t) { return t.id !== btn.dataset.id; });
+        if (state.activeGeneralTemplateId === btn.dataset.id) {
+          state.activeGeneralTemplateId = state.generalTemplates.length ? state.generalTemplates[0].id : null;
+          var active = state.generalTemplates.find(function (t) { return t.id === state.activeGeneralTemplateId; });
+          state.generalBlocks = active ? active.blocks.slice() : [];
+        }
+        saveGeneralTemplates();
+        renderGeneralTemplateBar();
+        renderBlocks('general');
+        openGeneralTemplateManager();
+      }
+    });
+
+    $('#generalTemplateCloseBtn').addEventListener('click', function () {
+      $('#generalTemplateOverlay').classList.add('hidden');
+    });
+
+    $('#templateBar').addEventListener('click', function (event) {
+      var btn = event.target.closest('.template-btn');
+      if (btn) openTemplatePreview(btn.dataset.template);
+    });
+
+    $('#templateConfirmBtn').addEventListener('click', applyPendingTemplate);
+    $('#templateCancelBtn').addEventListener('click', closeTemplatePreview);
+    $('#templatePreviewCloseBtn').addEventListener('click', closeTemplatePreview);
+
+    $('#prevMonthBtn').addEventListener('click', function () {
+      calendar.month--;
+      if (calendar.month < 0) { calendar.month = 11; calendar.year--; }
+      renderCalendar();
+    });
+    $('#nextMonthBtn').addEventListener('click', function () {
+      calendar.month++;
+      if (calendar.month > 11) { calendar.month = 0; calendar.year++; }
+      renderCalendar();
+    });
+    $('#calendarTodayBtn').addEventListener('click', function () {
+      var now = new Date();
+      calendar.year = now.getFullYear();
+      calendar.month = now.getMonth();
+      renderCalendar();
+    });
+
+    $('#calendarGrid').addEventListener('dblclick', function (event) {
+      var cell = event.target.closest('.calendar-cell[data-date]');
+      if (cell) openDay(cell.dataset.date);
+    });
+    $('#calendarGrid').addEventListener('mouseover', function (event) {
+      var cell = event.target.closest('.calendar-cell[data-date]');
+      if (cell) showCalendarTooltip(cell);
+      else hideCalendarTooltip();
+    });
+    $('#calendarGrid').addEventListener('mouseleave', hideCalendarTooltip);
+
+    var yearViewYear = new Date().getFullYear();
+
+    function renderYearView() {
+      var overlay = $('#yearViewOverlay');
+      var body = $('#yearViewBody');
+      var label = $('#yearViewYearLabel');
+
+      label.textContent = yearViewYear + '年';
+      body.innerHTML = '';
+
+      var months = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+      var grid = makeEl('div', 'month-grid');
+
+      months.forEach(function(month, index) {
+        var btn = makeEl('button', 'month-btn', month);
+        btn.type = 'button';
+        var isCurrentMonth = (yearViewYear === new Date().getFullYear() && index === new Date().getMonth());
+        if (isCurrentMonth) {
+          btn.style.borderColor = 'var(--accent)';
+          btn.style.background = 'var(--accent-soft)';
+        }
+        btn.addEventListener('click', function() {
+          calendar.year = yearViewYear;
+          calendar.month = index;
+          renderCalendar();
+          overlay.classList.add('hidden');
+        });
+        grid.appendChild(btn);
+      });
+
+      body.appendChild(grid);
+      overlay.classList.remove('hidden');
+    }
+
+    $('#calendarMonth').addEventListener('click', function() {
+      yearViewYear = calendar.year;
+      renderYearView();
+    });
+
+    $('#yearViewPrevBtn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      yearViewYear--;
+      renderYearView();
+    });
+
+    $('#yearViewNextBtn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      yearViewYear++;
+      renderYearView();
+    });
+
+    $('#yearViewCloseBtn').addEventListener('click', function() {
+      $('#yearViewOverlay').classList.add('hidden');
+    });
+
+    $('#yearViewOverlay').addEventListener('click', function(e) {
+      if (e.target === this) this.classList.add('hidden');
+    });
+
+    // ---------- 重要日期添加 ----------
+    $('#addImportantDateBtn').addEventListener('click', function () {
+      $('#importantDateInput').value = todayKey();
+      $('#importantDateText').value = '';
+      $('#importantDateOverlay').classList.remove('hidden');
+      document.querySelectorAll('.color-pick-btn').forEach(function(b) { b.classList.remove('selected'); });
+      document.querySelector('.color-pick-btn').classList.add('selected');
+    });
+
+    $('#importantDateSaveBtn').addEventListener('click', async function () {
+  var date = $('#importantDateInput').value;
+  var text = $('#importantDateText').value.trim();
+  var colorBtn = document.querySelector('.color-pick-btn.selected');
+  var color = colorBtn ? colorBtn.dataset.color : '#ef4444';
+  if (!date || !text) {
+    await showAlert('请填写日期和内容', 'warning');
+    return;
+  }
+  // 如果日期是过去，仅提示，不阻止添加
+  if (date < todayKey()) {
+    await showAlert('重要日期用于提前提醒，建议添加今天或未来的日期。', 'info');
+    // 允许继续
+  }
+  if (!importantDates[date]) importantDates[date] = [];
+  if (importantDates[date].length >= 3) {
+    await showAlert('该日重要日期已达上限（3 条）', 'warning');
+    return;
+  }
+  importantDates[date].push({ title: text, color: color });
+  saveJSON('dplan.v1.important_dates', importantDates);
+  $('#importantDateOverlay').classList.add('hidden');
+  $('#importantDateText').value = '';
+  if (state.view === 'calendar') {
+    renderCalendar();
+    renderImportantDatesList();
+  }
+});
+
+    $('#importantDateCloseBtn').addEventListener('click', function () {
+      $('#importantDateOverlay').classList.add('hidden');
+    });
+
+    document.addEventListener('click', function (e) {
+      if (e.target.classList && e.target.classList.contains('color-pick-btn')) {
+        document.querySelectorAll('.color-pick-btn').forEach(function (b) { b.classList.remove('selected'); });
+        e.target.classList.add('selected');
+      }
+    });
+
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.dataset && e.target.dataset.action === 'remove-important') {
+        var dk = e.target.dataset.date;
+        var idx = parseInt(e.target.dataset.idx, 10);
+        if (importantDates[dk] && importantDates[dk][idx] !== undefined) {
+          importantDates[dk].splice(idx, 1);
+          if (importantDates[dk].length === 0) delete importantDates[dk];
+          saveJSON('dplan.v1.important_dates', importantDates);
+          renderReminderForDate(dk);
+          renderCalendar();
+          renderImportantDatesList();
+        }
+      }
+    });
+
+    $('#reminderCloseBtn').addEventListener('click', closeReminderOverlay);
+
+    document.querySelectorAll('.nav-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (btn.dataset.view === 'today') openDay(todayKey());
+        else showView(btn.dataset.view);
+      });
+    });
+
+    $('#openTodosBtn').addEventListener('click', function () { showView('todos'); });
+    $('#backTodayBtn').addEventListener('click', function () {
+      loadDay(todayKey());
+      renderDate();
+      renderBlocks('actual');
+      renderGoals();
+      renderRoutines();
+      showView('today');
+    });
+
+    $('#historyBtn').addEventListener('click', function () {
+      renderHistoryList();
+      $('#historyOverlay').classList.remove('hidden');
+    });
+
+    $('#historyCloseBtn').addEventListener('click', function () {
+      $('#historyOverlay').classList.add('hidden');
+    });
+
+    $('#historyOverlay').addEventListener('click', function (event) {
+      if (event.target === $('#historyOverlay')) $('#historyOverlay').classList.add('hidden');
+    });
+
+    $('#historyBody').addEventListener('click', function (event) {
+      if (event.target.closest('.history-delete-btn')) return;
+
+      var item = event.target.closest('.history-item');
+      if (!item) return;
+      var key = item.dataset.key;
+      var rec = loadJSON('dplan.v1.day.' + key, null);
+      if (!rec) return;
+
+      var overlay = $('#historyOverlay');
+      var historyBody = $('#historyBody');
+      var historyTitle = $('#historyTitle');
+      historyTitle.textContent = '存档详情';
+
+      var wrap = makeEl('div');
+      var back = makeEl('button', 'text-btn back-btn');
+      back.type = 'button';
+      back.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg> 返回列表';
+      back.id = 'historyBackBtn';
+      back.addEventListener('click', function () {
+        renderHistoryList();
+        historyTitle.textContent = '历史存档';
+      });
+      wrap.appendChild(back);
+
+      var label = key === todayKey() ? '今天 · ' + fmtKey(key) : fmtKey(key);
+      wrap.appendChild(makeEl('h3', 'detail-title', label));
+
+      var blocksSection = makeEl('section', 'detail-section');
+      blocksSection.appendChild(makeEl('h3', '', '今日实际安排'));
+      (rec.actualBlocks || []).forEach(function (block) {
+        var row = makeEl('div', 'detail-block');
+        row.appendChild(makeEl('time', '', block.start + ' – ' + block.end));
+        row.appendChild(makeEl('span', '', block.title || '（未填写）'));
+        blocksSection.appendChild(row);
+      });
+      if (!rec.actualBlocks || rec.actualBlocks.length === 0) {
+        blocksSection.appendChild(makeEl('p', 'empty-text', '今天暂无安排'));
+      }
+
+      var goalsSection = makeEl('section', 'detail-section');
+      goalsSection.appendChild(makeEl('h3', '', '本周已完成目标'));
+      var goalList = makeEl('ul', 'detail-list');
+      var goalsSnapshot = rec.goalsSnapshot || rec.goals || [];
+      var doneGoals = goalsSnapshot.filter(function (g) { return g.done; });
+      if (doneGoals.length === 0) {
+        goalList.appendChild(makeEl('p', 'empty-text', '本周无目标'));
+      } else {
+        doneGoals.forEach(function (goal) {
+          var li = makeEl('li');
+          li.classList.add('done');
+          li.appendChild(makeEl('span', 'detail-goal-mark', '✅'));
+          li.appendChild(makeEl('span', '', goal.text || '（未填写）'));
+          goalList.appendChild(li);
+        });
+      }
+      goalsSection.appendChild(goalList);
+
+      var routinesSection = makeEl('section', 'detail-section');
+      routinesSection.appendChild(makeEl('h3', '', '当日已完成日常'));
+      var routineList = makeEl('ul', 'detail-list');
+      var routines = rec.routines || [];
+      var doneRoutines = routines.filter(function (r) { return r.done; });
+      if (doneRoutines.length === 0) {
+        routineList.appendChild(makeEl('p', 'empty-text', '当日无已完成日常'));
+      } else {
+        doneRoutines.forEach(function (routine) {
+          var li = makeEl('li');
+          var dot = makeEl('span', 'detail-check done');
+          dot.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+          li.appendChild(dot);
+          li.appendChild(makeEl('span', '', routine.text || '（未填写）'));
+          routineList.appendChild(li);
+        });
+      }
+      routinesSection.appendChild(routineList);
+
+      var cardsSection = makeEl('section', 'detail-section');
+      cardsSection.appendChild(makeEl('h3', '', '今日使用的卡'));
+      var cardList = makeEl('ul', 'detail-list');
+      var checkedCards = state.cards.filter(function (card) {
+        return card.lastUsedDate === key;
+      });
+      if (checkedCards.length === 0) {
+        cardList.appendChild(makeEl('p', 'empty-text', '当日无打卡记录'));
+      } else {
+        checkedCards.forEach(function (card) {
+          var li = makeEl('li');
+          var typeLabel = card.type === 'count' ? '次卡' : '期限卡';
+          var extra = '';
+          if (card.type === 'count') {
+            extra = '（已用 ' + (card.usedCount || 0) + '/' + (card.totalCount || 0) + ' 次）';
+          }
+          li.appendChild(makeEl('span', 'detail-goal-mark', '✅'));
+          li.appendChild(makeEl('span', '', card.name + '（' + typeLabel + '）' + extra));
+          cardList.appendChild(li);
+        });
+      }
+      cardsSection.appendChild(cardList);
+
+      wrap.append(blocksSection, goalsSection, routinesSection, cardsSection);
+      historyBody.innerHTML = '';
+      historyBody.appendChild(wrap);
+    });
+
+    // ========== 待办事件 ==========
+    matrixEl.addEventListener('click', function (event) {
+      var btn = event.target.closest('button[data-action]');
+      if (!btn) return;
+      var todo = findTodo(btn.dataset.id);
+      if (!todo) return;
+
+      if (btn.dataset.action === 'todo-delete') {
+        state.todos = state.todos.filter(function (t) { return t.id !== todo.id; });
+        delete runningTimers[todo.id];
+        saveTodos();
+        renderTodos();
+      } else if (btn.dataset.action === 'todo-complete') {
+        todo.done = true;
+        delete runningTimers[todo.id];
+        saveTodos();
+        renderTodos();
+      } else if (btn.dataset.action === 'timer-toggle') {
+        if (runningTimers[todo.id]) delete runningTimers[todo.id];
+        else runningTimers[todo.id] = true;
+        renderTodos();
+      } else if (btn.dataset.action === 'timer-reset') {
+        todo.metricValue = 0;
+        delete runningTimers[todo.id];
+        updateTimerRow(todo);
+        saveTodos();
+        renderTodos();
+      } else if (btn.dataset.action === 'counter-plus') {
+        todo.metricValue = (todo.metricValue || 0) + 1;
+        updateCounterRow(todo);
+        if (todo.metricValue >= todo.targetValue && todo.targetValue > 0) {
+          todo.done = true;
+          delete runningTimers[todo.id];
+          saveTodos();
+          renderTodos();
+        } else {
+          saveTodos();
+        }
+      } else if (btn.dataset.action === 'counter-minus') {
+        todo.metricValue = Math.max(0, (todo.metricValue || 0) - 1);
+        updateCounterRow(todo);
+        if (todo.done && todo.metricValue < todo.targetValue) {
+          todo.done = false;
+        }
+        saveTodos();
+        renderTodos();
+      } else if (btn.dataset.action === 'counter-reset') {
+        todo.metricValue = 0;
+        todo.done = false;
+        updateCounterRow(todo);
+        saveTodos();
+        renderTodos();
+      } else if (btn.dataset.action === 'note-open') {
+        openNoteOverlay(todo);
+      }
+    });
+
+    window.setInterval(function () {
+      var changed = false;
+      var completedIds = [];
+      Object.keys(runningTimers).forEach(function (id) {
+        var todo = findTodo(id);
+        if (todo) {
+          todo.metricValue = (todo.metricValue || 0) + 1;
+          updateTimerRow(todo);
+          changed = true;
+          var total = (todo.targetValue || 0) * 60;
+          if (todo.metricValue >= total && !todo._notified) {
+            todo._notified = true;
+            todo.done = true;
+            completedIds.push(todo.id);
+            delete runningTimers[todo.id];
+            showToast('⏰ 任务 "' + todo.text + '" 计时已完成！');
+          }
+        }
+      });
+      if (completedIds.length > 0) {
+        renderTodos();
+        saveTodos();
+      } else if (changed) {
+        saveTodos();
+      }
+    }, 1000);
+
+    $('#completedToggleBtn').addEventListener('click', function () {
+      $('#completedPanel').classList.toggle('expanded');
+      $('#completedBody').classList.toggle('hidden');
+    });
+
+    $('#completedBody').addEventListener('click', function (event) {
+      var btn = event.target.closest('button[data-action="restore-todo"]');
+      if (!btn) return;
+      var todo = findTodo(btn.dataset.id);
+      if (todo) {
+        todo.done = false;
+        saveTodos();
+        renderTodos();
+      }
+    });
+
+    $('#tagFilter').addEventListener('click', function (event) {
+      var remove = event.target.closest('.tag-x');
+      if (remove) {
+        var removeTag = remove.parentElement.dataset.tag;
+        deleteTag(removeTag);
+        return;
+      }
+      var btn = event.target.closest('.tag-filter-btn');
+      if (!btn) return;
+      var tag = btn.dataset.tag;
+      tagFilter = tag === tagFilter ? 'all' : tag;
+      renderTodos();
+    });
+
+    // ========== 待办向导 ==========
+    var wizard = { step: 0, text: '', quadrant: 1, metricType: 'timer', target: 30, dueDate: '', estimate: '', tags: [] };
+
+    function openTodoWizard(prefillText) {
+      wizard = { step: 0, text: prefillText || '', quadrant: 1, metricType: 'timer', target: 30, dueDate: '', estimate: '', tags: [] };
+      $('#wizardOverlay').classList.remove('hidden');
+      renderWizard();
+    }
+
+    function closeWizard() { $('#wizardOverlay').classList.add('hidden'); }
+
+    function renderWizard() {
+      var body = $('#wizardBody');
+      body.innerHTML = '';
+      if (wizard.step === 0) {
+        $('#wizardTitle').textContent = '新建待办 · 内容';
+        var input = makeEl('input', 'wizard-input');
+        input.type = 'text';
+        input.id = 'wizardTextInput';
+        input.placeholder = '输入待办内容';
+        input.value = wizard.text;
+        body.appendChild(input);
+        $('#wizardBackBtn').disabled = true;
+        $('#wizardBackBtn').style.opacity = '0.45';
+        $('#wizardNextBtn').textContent = '下一步';
+        input.addEventListener('input', function () { wizard.text = input.value; });
+        setTimeout(function () { input.focus(); }, 0);
+      } else if (wizard.step === 1) {
+        $('#wizardTitle').textContent = '选择象限';
+        var grid = makeEl('div', 'wizard-choices cols');
+        QUADRANT_ORDER.forEach(function (q) {
+          var btn = makeEl('button', 'choice-btn' + (wizard.quadrant === q ? ' selected' : ''), QUADRANT_LABELS[q]);
+          btn.type = 'button';
+          btn.dataset.action = 'choose-quadrant';
+          btn.dataset.quadrant = q;
+          grid.appendChild(btn);
+        });
+        body.appendChild(grid);
+        $('#wizardBackBtn').disabled = false;
+        $('#wizardBackBtn').style.opacity = '1';
+        $('#wizardNextBtn').textContent = '下一步';
+      } else if (wizard.step === 2) {
+        $('#wizardTitle').textContent = '选择类型';
+        var grid = makeEl('div', 'wizard-choices');
+        [['timer', '计时任务'], ['counter', '计次任务'], ['text', '纯文本任务']].forEach(function (pair) {
+          var btn = makeEl('button', 'choice-btn' + (wizard.metricType === pair[0] ? ' selected' : ''), pair[1]);
+          btn.type = 'button';
+          btn.dataset.action = 'choose-type';
+          btn.dataset.type = pair[0];
+          grid.appendChild(btn);
+        });
+        body.appendChild(grid);
+        $('#wizardBackBtn').disabled = false;
+        $('#wizardBackBtn').style.opacity = '1';
+        $('#wizardNextBtn').textContent = '下一步';
+      } else if (wizard.step === 3) {
+        $('#wizardTitle').textContent = wizard.metricType === 'timer' ? '目标分钟数' : '目标次数';
+        var field = makeEl('div', 'wizard-field');
+        var input = makeEl('input', 'wizard-input');
+        input.type = 'number';
+        input.min = '1';
+        input.id = 'wizardTargetInput';
+        input.value = wizard.target;
+        field.appendChild(input);
+        field.appendChild(makeEl('span', 'wizard-unit', wizard.metricType === 'timer' ? '分钟' : '次'));
+        body.appendChild(field);
+        $('#wizardBackBtn').disabled = false;
+        $('#wizardBackBtn').style.opacity = '1';
+        $('#wizardNextBtn').textContent = '下一步';
+        input.addEventListener('input', function () { wizard.target = Number(input.value) || 0; });
+        setTimeout(function () { input.focus(); }, 0);
+      } else if (wizard.step === 4) {
+        $('#wizardTitle').textContent = '附加信息';
+        var grid = makeEl('div', 'edit-grid');
+        var dueField = makeEl('div', 'edit-field');
+        dueField.appendChild(makeEl('label', '', '截止日期'));
+        var dueInput = makeEl('input', '');
+        dueInput.type = 'date';
+        dueInput.id = 'wizardDueDate';
+        dueInput.value = wizard.dueDate;
+        dueField.appendChild(dueInput);
+        grid.appendChild(dueField);
+        var estimateField = makeEl('div', 'edit-field');
+        estimateField.appendChild(makeEl('label', '', '预估耗时（分钟）'));
+        var estimateInput = makeEl('input', '');
+        estimateInput.type = 'number';
+        estimateInput.min = '0';
+        estimateInput.id = 'wizardEstimate';
+        estimateInput.value = wizard.estimate;
+        estimateField.appendChild(estimateInput);
+        grid.appendChild(estimateField);
+        body.appendChild(grid);
+
+        var tagsField = makeEl('div', 'edit-field');
+        tagsField.appendChild(makeEl('label', '', '标签'));
+        var presetWrap = makeEl('div', 'preset-tags');
+        var existing = allTags();
+        existing.forEach(function (tag) {
+          var presetBtn = makeEl('button', 'preset-tag-btn' + (wizard.tags.indexOf(tag) >= 0 ? ' selected' : ''), tag);
+          presetBtn.type = 'button';
+          presetBtn.dataset.action = 'choose-preset-tag';
+          presetBtn.dataset.tag = tag;
+          presetWrap.appendChild(presetBtn);
+        });
+        tagsField.appendChild(presetWrap);
+        var customInput = makeEl('input', '');
+        customInput.type = 'text';
+        customInput.id = 'wizardCustomTag';
+        customInput.placeholder = '输入自定义标签后回车';
+        customInput.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter') return;
+          var value = customInput.value.trim();
+          if (value && wizard.tags.indexOf(value) < 0) wizard.tags.push(value);
+          customInput.value = '';
+          renderWizard();
+        });
+        tagsField.appendChild(customInput);
+        if (wizard.tags.length) {
+          var chosen = makeEl('div', 'chosen-tags');
+          wizard.tags.forEach(function (tag) {
+            var chip = makeEl('span', 'chosen-tag');
+            chip.appendChild(document.createTextNode(tag));
+            var remove = makeEl('button', '', '×');
+            remove.type = 'button';
+            remove.dataset.action = 'remove-tag';
+            remove.dataset.tag = tag;
+            chip.appendChild(remove);
+            chosen.appendChild(chip);
+          });
+          tagsField.appendChild(chosen);
+        }
+        body.appendChild(tagsField);
+        $('#wizardBackBtn').disabled = false;
+        $('#wizardBackBtn').style.opacity = '1';
+        $('#wizardNextBtn').textContent = '完成';
+        dueInput.addEventListener('input', function () { wizard.dueDate = dueInput.value; });
+        estimateInput.addEventListener('input', function () { wizard.estimate = Number(estimateInput.value) || 0; });
+        setTimeout(function () { dueInput.focus(); }, 0);
+      }
+    }
+
+    function wizardNext() {
+      if (wizard.step === 0) {
+        if (!wizard.text.trim()) {
+          var input = $('#wizardTextInput');
+          if (input) input.focus();
+          return;
+        }
+        wizard.step = 1;
+      } else if (wizard.step === 1) {
+        wizard.step = 2;
+      } else if (wizard.step === 2) {
+        wizard.step = wizard.metricType === 'text' ? 4 : 3;
+      } else if (wizard.step === 3) {
+        if (!wizard.target || wizard.target <= 0) return;
+        wizard.step = 4;
+      } else if (wizard.step === 4) {
+        state.todos.push({
+          id: uid(),
+          text: wizard.text.trim(),
+          quadrant: wizard.quadrant,
+          metricType: wizard.metricType,
+          metricValue: 0,
+          targetValue: wizard.metricType === 'text' ? 0 : wizard.target,
+          dueDate: wizard.dueDate,
+          estimate: wizard.estimate,
+          tags: wizard.tags.slice(),
+          note: '',
+          done: false
+        });
+        ensureTags(wizard.tags);
+        saveTodos();
+        closeWizard();
+        $('#todoTextInput').value = '';
+        renderTodos();
+        return;
+      }
+      renderWizard();
+    }
+
+    function wizardBack() {
+      if (wizard.step === 1) wizard.step = 0;
+      else if (wizard.step === 2) wizard.step = 1;
+      else if (wizard.step === 3) wizard.step = 2;
+      else if (wizard.step === 4) wizard.step = wizard.metricType === 'text' ? 2 : 3;
+      renderWizard();
+    }
+
+    $('#wizardBody').addEventListener('click', function (event) {
+      var btn = event.target.closest('button[data-action]');
+      if (!btn) return;
+      if (btn.dataset.action === 'choose-quadrant') {
+        wizard.quadrant = Number(btn.dataset.quadrant);
+        renderWizard();
+      } else if (btn.dataset.action === 'choose-type') {
+        wizard.metricType = btn.dataset.type;
+        renderWizard();
+      } else if (btn.dataset.action === 'choose-preset-tag') {
+        var tag = btn.dataset.tag;
+        var index = wizard.tags.indexOf(tag);
+        if (index >= 0) wizard.tags.splice(index, 1);
+        else wizard.tags.push(tag);
+        renderWizard();
+      } else if (btn.dataset.action === 'remove-tag') {
+        wizard.tags = wizard.tags.filter(function (t) { return t !== btn.dataset.tag; });
+        renderWizard();
+      }
+    });
+
+    $('#addTodoBtn').addEventListener('click', function () {
+      openTodoWizard($('#todoTextInput').value);
+    });
+    $('#todoTextInput').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') openTodoWizard($('#todoTextInput').value);
+    });
+    $('#wizardNextBtn').addEventListener('click', wizardNext);
+    $('#wizardBackBtn').addEventListener('click', wizardBack);
+    $('#wizardCloseBtn').addEventListener('click', closeWizard);
+
+    // ========== 备注弹窗 ==========
+    var noteTodoId = null;
+    function openNoteOverlay(todo) {
+      noteTodoId = todo.id;
+      $('#editDueDate').value = todo.dueDate || '';
+      $('#editEstimate').value = todo.estimate || '';
+      $('#editTags').value = (todo.tags || []).join(', ');
+      $('#noteText').value = todo.note || '';
+      var tagChoices = document.getElementById('noteTagChoices');
+      tagChoices.innerHTML = '';
+      var tags = allTags();
+      tags.forEach(function(tag) {
+        var btn = makeEl('button', 'preset-tag-btn', tag);
+        btn.type = 'button';
+        btn.dataset.tag = tag;
+        btn.addEventListener('click', function() {
+          var input = $('#editTags');
+          var current = input.value.split(',').map(s => s.trim()).filter(Boolean);
+          if (current.indexOf(tag) === -1) {
+            current.push(tag);
+            input.value = current.join(', ');
+          }
+        });
+        tagChoices.appendChild(btn);
+      });
+      $('#noteOverlay').classList.remove('hidden');
+      $('#editDueDate').focus();
+    }
+    function closeNoteOverlay() { $('#noteOverlay').classList.add('hidden'); }
+
+    $('#noteSaveBtn').addEventListener('click', function () {
+      var todo = findTodo(noteTodoId);
+      if (todo) {
+        todo.dueDate = $('#editDueDate').value;
+        todo.estimate = Number($('#editEstimate').value) || 0;
+        todo.tags = $('#editTags').value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+        todo.note = $('#noteText').value;
+        ensureTags(todo.tags);
+        saveTodos();
+        renderTodos();
+      }
+      closeNoteOverlay();
+    });
+    $('#noteCloseBtn').addEventListener('click', closeNoteOverlay);
+
+    // ========== 卡项事件 ==========
+    $('#addCardBtnMain').addEventListener('click', openCardForm);
+    $('#cardSaveBtn').addEventListener('click', saveCardForm);
+    $('#cardCloseBtn').addEventListener('click', closeCardForm);
+
+    document.querySelectorAll('input[name="cardType"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        $('#cardTotal').disabled = (this.value !== 'count');
+        if (this.value !== 'count') $('#cardTotal').value = '';
+      });
+    });
+
+    $('#cardDetailCloseBtn').addEventListener('click', closeCardDetail);
+
+    $('#cardDetailCancelBtn').addEventListener('click', function() {
+      var editBtn = $('#cardDetailEditBtn');
+      var cancelBtn = $('#cardDetailCancelBtn');
+      var deleteBtn = $('#cardDetailDeleteBtn');
+      var saveBtn = $('#cardDetailSaveBtn');
+      editBtn.style.display = '';
+      cancelBtn.style.display = 'none';
+      deleteBtn.style.display = 'none';
+      saveBtn.style.display = 'none';
+      renderCardDetail(cardDetailId);
+    });
+
+    $('#cardDetailDeleteBtn').addEventListener('click', function() {
+      if (cardDetailId) deleteCard(cardDetailId);
+    });
+
+    $('#cardDetailSaveBtn').addEventListener('click', function() {
+      var card = state.cards.find(function (c) { return c.id === cardDetailId; });
+      if (!card) return;
+      var name = document.getElementById('cardEdit_name').value.trim();
+      if (!name) return;
+      card.name = name;
+      var type = document.getElementById('cardEdit_type').value;
+      card.type = type;
+      card.start = document.getElementById('cardEdit_start').value;
+      card.end = document.getElementById('cardEdit_end').value;
+      card.totalCount = Number(document.getElementById('cardEdit_totalCount').value) || 0;
+      card.cost = Number(document.getElementById('cardEdit_cost').value) || 0;
+      card.note = document.getElementById('cardEdit_note').value;
+      saveCards();
+      var editBtn = $('#cardDetailEditBtn');
+      var cancelBtn = $('#cardDetailCancelBtn');
+      var deleteBtn = $('#cardDetailDeleteBtn');
+      var saveBtn = $('#cardDetailSaveBtn');
+      editBtn.style.display = '';
+      cancelBtn.style.display = 'none';
+      deleteBtn.style.display = 'none';
+      saveBtn.style.display = 'none';
+      renderCardDetail(cardDetailId);
+      renderCards();
+    });
+
+    $('#cardDetailOverlay').addEventListener('click', function(e) {
+      if (e.target === this) closeCardDetail();
+    });
+
+    $('#cardStatusCapsule').addEventListener('click', function () { showView('cards'); });
+
+    $('#toggleExpiredBtn').addEventListener('click', function() {
+      state.showExpired = !state.showExpired;
+      renderCards();
+    });
+
+    // ========== 固定日常每日重置 ==========
+    function resetRoutinesIfNewDay() {
+      var lastDate = loadJSON('dplan.v1.lastVisitDate', null);
+      var today = todayKey();
+      if (lastDate !== today) {
+        state.routines.forEach(function (routine) {
+          routine.done = false;
+        });
+        saveToday();
+        var template = routinesTemplate();
+        template.forEach(function (r) {
+          r.done = false;
+        });
+        saveJSON('dplan.v1.routines', template);
+        renderRoutines();
+        saveJSON('dplan.v1.lastVisitDate', today);
+      }
+    }
+
+    resetRoutinesIfNewDay();
+
+    // ========== 导出 / 导入 ==========
+    function downloadFile(filename, content, mime) {
+      var blob = new Blob([content], { type: mime || 'application/octet-stream' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function collectAllData() {
+      var data = { exportedAt: new Date().toISOString(), version: 1 };
+      try {
+        for (var i = 0; i < storage.length; i++) {
+          var key = storage.key(i);
+          if (key && key.indexOf('dplan.') === 0) {
+            data[key] = storage.getItem(key);
+          }
+        }
+      } catch (err) {}
+      return data;
+    }
+
+    function exportJson() {
+      var data = collectAllData();
+      var json = JSON.stringify(data, null, 2);
+      downloadFile('每日计划备份-' + todayKey() + '.json', json, 'application/json');
+      showToast('✅ 全部数据已导出为 JSON 备份');
+    }
+
+    function exportTodayCsv() {
+      var rows = [['开始时间', '结束时间', '标题', '图标']];
+      state.actualBlocks.forEach(function (b) {
+        rows.push([b.start, b.end, b.title, b.emoji || '']);
+      });
+      var csv = rows.map(function (r) {
+        return r.map(function (c) {
+          var s = String(c == null ? '' : c);
+          if (/[",\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+          return s;
+        }).join(',');
+      }).join('\n');
+      downloadFile('今日计划-' + state.key + '.csv', '\ufeff' + csv, 'text/csv;charset=utf-8');
+      showToast('✅ 今日计划已导出为 CSV');
+    }
+
+    function exportTodayText() {
+      var lines = [];
+      lines.push('每日计划 · ' + fmtKey(state.key));
+      lines.push('');
+      lines.push('【今日实际安排】');
+      if (state.actualBlocks.length === 0) lines.push('  （无）');
+      state.actualBlocks.forEach(function (b) {
+        lines.push('  ' + b.start + ' - ' + b.end + '\t' + (b.title || '（未填写）') + ' ' + (b.emoji || ''));
+      });
+      lines.push('');
+      lines.push('【本周目标】');
+      var goalDone = state.goals.filter(function (g) { return g.done; }).length;
+      lines.push('  完成 ' + goalDone + ' / ' + state.goals.length);
+      state.goals.forEach(function (g) {
+        var mark = g.done ? '[x]' : '[ ]';
+        lines.push('  ' + mark + ' ' + (g.text || '（未填写）'));
+      });
+      lines.push('');
+      lines.push('【固定日常】');
+      var routineDone = state.routines.filter(function (r) { return r.done; }).length;
+      lines.push('  完成 ' + routineDone + ' / ' + state.routines.length);
+      state.routines.forEach(function (r) {
+        var mark = r.done ? '[x]' : '[ ]';
+        lines.push('  ' + mark + ' ' + (r.text || '（未填写）'));
+      });
+      lines.push('');
+      lines.push('【待办事项】');
+      var activeTodos = state.todos.filter(function (t) { return !t.done; });
+      if (activeTodos.length === 0) lines.push('  （无待办）');
+      activeTodos.forEach(function (t) {
+        var q = QUADRANT_LABELS[t.quadrant] || '';
+        var tag = (t.tags && t.tags.length) ? ' #' + t.tags.join(' #') : '';
+        var due = t.dueDate ? '  截止 ' + t.dueDate : '';
+        lines.push('  - ' + t.text + '（' + q + '）' + tag + due);
+      });
+      var text = lines.join('\n');
+      downloadFile('今日计划-' + state.key + '.txt', '\ufeff' + text, 'text/plain;charset=utf-8');
+      showToast('✅ 今日计划已导出为文本');
+    }
+
+    function importJson(file) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        try {
+          var data = JSON.parse(String(reader.result));
+          if (!data || typeof data !== 'object') throw new Error('格式错误');
+          var count = 0;
+          Object.keys(data).forEach(function (key) {
+            if (key.indexOf('dplan.') === 0 && typeof data[key] === 'string') {
+              storage.setItem(key, data[key]);
+              count++;
+            }
+          });
+          showToast('✅ 成功导入 ' + count + ' 条数据，页面即将刷新');
+          setTimeout(function () { location.reload(); }, 1500);
+        } catch (err) {
+          showAlert('导入失败：文件不是有效的备份格式。', 'warning');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function openExportOverlay() {
+      $('#importFileInput').value = '';
+      $('#exportOverlay').classList.remove('hidden');
+    }
+    function closeExportOverlay() { $('#exportOverlay').classList.add('hidden'); }
+
+    $('#exportBtn').addEventListener('click', openExportOverlay);
+    $('#exportCloseBtn').addEventListener('click', closeExportOverlay);
+    $('#exportCloseFootBtn').addEventListener('click', closeExportOverlay);
+    $('#exportOverlay').addEventListener('click', function (e) { if (e.target === this) closeExportOverlay(); });
+    $('#exportJsonBtn').addEventListener('click', exportJson);
+    $('#exportCsvBtn').addEventListener('click', exportTodayCsv);
+    $('#exportTextBtn').addEventListener('click', exportTodayText);
+    $('#importApplyBtn').addEventListener('click', function () {
+      var input = $('#importFileInput');
+      if (!input.files || input.files.length === 0) {
+        showToast('请先选择要导入的 JSON 文件');
+        return;
+      }
+      importJson(input.files[0]);
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') closeExportOverlay();
+    });
+
+    // ========== 键盘 ==========
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        closeWizard();
+        closeNoteOverlay();
+        closeReminderOverlay();
+        closeCardForm();
+        closeCardDetail();
+        $('#importantDateOverlay').classList.add('hidden');
+        closeTemplatePreview();
+        $('#generalTemplateOverlay').classList.add('hidden');
+        $('#historyOverlay').classList.add('hidden');
+        $('#yearViewOverlay').classList.add('hidden');
+      }
+    });
+
+  })();
+</script>
+</body>
+</html>
