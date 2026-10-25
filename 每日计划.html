@@ -876,10 +876,6 @@
         </aside>
       </div>
 
-      <footer class="app-footer">
-        <span class="save-dot" aria-hidden="true"></span>
-        <span id="saveText">内容自动保存到本机</span>
-      </footer>
     </section>
 
     <!-- 日历视图 -->
@@ -974,6 +970,10 @@
       </div>
       <div class="card-grid" id="cardGrid"></div>
     </section>
+    <footer class="app-footer" role="status" aria-live="polite">
+      <span class="save-dot" aria-hidden="true"></span>
+      <span id="saveText">恢复中：正在检查本机持久化存储</span>
+    </footer>
   </main>
 
   <!-- 弹窗模版 -->
@@ -1153,7 +1153,7 @@
       <div class="modal-foot">
         <button class="text-btn" id="cardDetailEditBtn" type="button">编辑</button>
         <button class="text-btn" id="cardDetailCancelBtn" type="button" style="display:none;">取消</button>
-        <button class="text-btn" id="cardDetailDeleteBtn" type="button" style="display:none; color: var(--danger); border-color: var(--danger);">🗑️ 删除</button>
+        <button class="text-btn" id="cardDetailDeleteBtn" type="button" style="display:none; color: var(--danger); border-color: var(--danger);">🗃️ 归档</button>
         <button class="text-btn primary" id="cardDetailSaveBtn" type="button" style="display:none;">保存</button>
       </div>
     </div>
@@ -1257,21 +1257,147 @@
       '2026-10-01': '国庆'
     };
 
-    var storage = (function () {
-      try {
-        var probe = '__dplan_probe__';
-        window.localStorage.setItem(probe, '1');
-        window.localStorage.removeItem(probe);
-        return window.localStorage;
-      } catch (err) {
-        var mem = {};
-        return {
-          getItem: function (key) { return Object.prototype.hasOwnProperty.call(mem, key) ? mem[key] : null; },
-          setItem: function (key, value) { mem[key] = String(value); },
-          removeItem: function (key) { delete mem[key]; }
-        };
+    // No substitute store: failed persistence must never look like a saved record.
+    var saveStatus = {
+      phase: 'recovering', faultActive: false, warned: false,
+      warningQueued: false, warningOpen: false, unverified: false,
+      lastError: '', pending: Object.create(null)
+    };
+    var storageReady = false;
+    var storageReadFailed = false;
+    var importInProgress = false;
+    function renderSaveStatus() {
+      var node = document.getElementById('saveText');
+      if (!node) return;
+      var count = Object.keys(saveStatus.pending).length;
+      var detail = count ? count + ' 项修改仅保留在当前页面，尚未确认持久化，刷新可能丢失。' : '';
+      node.dataset.state = saveStatus.phase;
+      node.textContent = saveStatus.phase === 'saved'
+        ? '已保存到本机（持久化存储）'
+        : saveStatus.phase === 'recovering'
+          ? '恢复中：' + (importInProgress ? '导入处理中，等待重新加载；自动保存暂停。' : '正在核验保存状态。') + detail
+          : '保存失败：' + detail + (saveStatus.lastError || '持久化保存已停止，请解决存储异常后重新加载。');
+      node.style.color = saveStatus.phase === 'failed' ? 'var(--danger)' : '';
+      var dot = document.querySelector('.save-dot');
+      if (dot) dot.style.background = saveStatus.phase === 'saved' ? 'var(--accent)' : saveStatus.phase === 'failed' ? 'var(--danger)' : '#f59e0b';
+    }
+    function setSavePhase(phase) {
+      saveStatus.phase = phase;
+      renderSaveStatus();
+    }
+    function reportStorageError(message) {
+      saveStatus.lastError = message;
+      saveStatus.faultActive = true;
+      if (Object.keys(saveStatus.pending).length === 0) saveStatus.unverified = true;
+      setSavePhase('failed');
+      // One visible warning per continuous fault, including different failing keys.
+      if (saveStatus.warned || saveStatus.warningQueued || saveStatus.warningOpen) return;
+      saveStatus.warned = true;
+      saveStatus.warningQueued = true;
+      setTimeout(function () {
+        saveStatus.warningQueued = false;
+        if (!saveStatus.faultActive) { saveStatus.warned = false; return; }
+        saveStatus.warningOpen = true;
+        function closed() {
+          saveStatus.warningOpen = false;
+          if (!saveStatus.faultActive) saveStatus.warned = false;
+        }
+        Promise.resolve(showAlert(saveStatus.lastError + ' 未确认保存的修改只在当前页面中，刷新可能丢失；请查看页面底部持续保存状态。', 'warning')).then(closed, closed);
+      }, 0);
+    }
+    function verifyPendingSaves() {
+      if (!storageReady || storageReadFailed || saveStatus.unverified || importInProgress) {
+        setSavePhase(saveStatus.faultActive || storageReadFailed ? 'failed' : 'recovering');
+        return false;
       }
+      try {
+        Object.keys(saveStatus.pending).forEach(function (key) {
+          var pending = saveStatus.pending[key];
+          if (pending.valid && storage.getItem(key) === pending.value) delete saveStatus.pending[key];
+        });
+      } catch (err) {
+        saveStatus.unverified = true;
+        reportStorageError('保存恢复核验失败：' + err.message);
+        return false;
+      }
+      if (Object.keys(saveStatus.pending).length) {
+        setSavePhase('failed');
+        return false;
+      }
+      saveStatus.faultActive = false;
+      saveStatus.lastError = '';
+      if (!saveStatus.warningOpen && !saveStatus.warningQueued) saveStatus.warned = false;
+      setSavePhase('saved');
+      return true;
+    }
+    function assertDevKey(key) {
+      if (typeof key !== 'string' || key.indexOf('dplan.') !== 0) {
+        throw new Error('拒绝操作开发命名空间以外的存储键');
+      }
+    }
+    var storage = (function () {
+      var nativeStorage = null;
+      var writable = false;
+      try {
+        nativeStorage = window.localStorage;
+        var probe;
+        var probeAttempt = 0;
+        do {
+          probe = 'dplan.probe.' + Date.now().toString(36) + '.' + Math.random().toString(36).slice(2) + '.' + probeAttempt++;
+        } while (nativeStorage.getItem(probe) !== null);
+        var token = probe + '.' + Math.random().toString(36).slice(2);
+        try {
+          nativeStorage.setItem(probe, token);
+          if (nativeStorage.getItem(probe) !== token) throw new Error('探针写入校验失败');
+          writable = true;
+        } finally {
+          // Only remove our own value, including a write that threw after taking effect.
+          if (nativeStorage.getItem(probe) === token) {
+            nativeStorage.removeItem(probe);
+            if (nativeStorage.getItem(probe) !== null) throw new Error('探针清理失败');
+          }
+        }
+      } catch (err) {
+        writable = false;
+        reportStorageError('浏览器持久化存储不可写或不可用，已停止保存；仍会尝试读取原有开发数据。');
+      }
+      storageReady = writable;
+      function readable() {
+        if (!nativeStorage) throw new Error('浏览器持久化存储不可用');
+        return nativeStorage;
+      }
+      return {
+        get length() { return readable().length; },
+        key: function (index) { return readable().key(index); },
+        getItem: function (key) { assertDevKey(key); return readable().getItem(key); },
+        setItem: function (key, value) {
+          assertDevKey(key);
+          if (!writable || storageReadFailed) throw new Error('持久化写入已停止，请解决存储异常后重新加载');
+          readable().setItem(key, value);
+          if (readable().getItem(key) !== String(value)) throw new Error('写入校验失败：' + key);
+        },
+        removeItem: function (key) {
+          assertDevKey(key);
+          if (!writable || storageReadFailed) throw new Error('持久化删除已停止，请解决存储异常后重新加载');
+          readable().removeItem(key);
+          if (readable().getItem(key) !== null) throw new Error('删除校验失败：' + key);
+        }
+      };
     })();
+    verifyPendingSaves();
+
+    function listStorageKeys() {
+      var count = storage.length;
+      if (!Number.isInteger(count) || count < 0) throw new Error('无法完整枚举存储');
+      var keys = [];
+      for (var i = 0; i < count; i++) {
+        var key = storage.key(i);
+        if (typeof key !== 'string' || keys.indexOf(key) >= 0) throw new Error('存储枚举期间发生变化');
+        keys.push(key);
+      }
+      if (storage.length !== count) throw new Error('存储枚举期间发生变化');
+      return keys;
+    }
 
     function $(sel, root) { return (root || document).querySelector(sel); }
     function makeEl(tag, className, text) {
@@ -1304,15 +1430,169 @@
     function loadJSON(key, fallback) {
       try {
         var raw = storage.getItem(key);
-        return raw ? JSON.parse(raw) : fallback;
+        return raw === null ? fallback : JSON.parse(raw);
       } catch (err) {
+        storageReadFailed = true;
+        reportStorageError('读取开发数据失败（' + key + '），已停止后续写入以保护原数据。');
         return fallback;
       }
     }
 
     function saveJSON(key, value) {
-      try { storage.setItem(key, JSON.stringify(value)); } catch (err) {}
+      try {
+        assertDevKey(key);
+        saveStatus.pending[key] = { valid: false, value: null };
+        var serialized = JSON.stringify(value);
+        if (typeof serialized !== 'string') throw new Error('数据无法序列化为 JSON');
+        saveStatus.pending[key] = { valid: true, value: serialized };
+        setSavePhase('recovering');
+        if (importInProgress) throw new Error('导入正在进行，自动保存已暂停');
+        storage.setItem(key, serialized);
+        verifyPendingSaves();
+        return true;
+      } catch (err) {
+        reportStorageError('保存失败（' + key + '）：' + err.message);
+        return false;
+      }
     }
+
+    function removeSavedItem(key) {
+      assertDevKey(key);
+      saveStatus.pending[key] = { valid: true, value: null };
+      setSavePhase('recovering');
+      storage.removeItem(key);
+      verifyPendingSaves();
+    }
+
+    // ===== Date/history/card data contracts (no browser data outside dev keys) =====
+    var CARDS_KEY = 'dplan.v2.cards';
+    function cloneData(value) { return JSON.parse(JSON.stringify(value)); }
+    function validDate(value) {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+      var d = new Date(value + 'T00:00:00Z');
+      return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
+    }
+    function nonnegativeInteger(value) { return Number.isSafeInteger(value) && value >= 0; }
+    function cardUsage(card) {
+      return card.legacyUsedCount + card.checkins.filter(function (entry) { return entry.type === 'count'; }).length;
+    }
+    function cardCheckedOn(card, date) { return card.checkins.some(function (entry) { return entry.date === date; }); }
+    function updateCardCounters(card) {
+      card.usedCount = cardUsage(card);
+      card.lastUsedDate = card.checkins.map(function (entry) { return entry.date; }).sort().pop() || '';
+    }
+    function validateCardFields(card) {
+      if (!['term', 'count'].includes(card.type) || typeof card.name !== 'string' || !card.name.trim()) throw new Error('卡项名称或类型无效');
+      if ((card.start !== '' && !validDate(card.start)) || !validDate(card.end) || (card.start && card.end < card.start)) throw new Error('卡项有效期无效');
+      if (!nonnegativeInteger(card.usedCount) || !nonnegativeInteger(card.totalCount) || (card.type === 'count' && (card.totalCount < 1 || card.totalCount < card.usedCount))) throw new Error('卡项次数必须为整数，总次数不能小于已用次数');
+      if (typeof card.cost !== 'number' || !Number.isFinite(card.cost) || card.cost < 0) throw new Error('卡项费用无效');
+    }
+    function trackedCard(card) {
+      return Object.assign({}, card, { archived: false, legacyUsedCount: 0, checkins: [], migration: null });
+    }
+    function validateCardsV2(data) {
+      function object(v) { return v && typeof v === 'object' && !Array.isArray(v); }
+      function fields(v, names) {
+        if (!object(v) || Object.keys(v).some(function (k) { return !names.includes(k); }) || names.some(function (k) { return !Object.prototype.hasOwnProperty.call(v, k); })) throw new Error('新版卡项字段无效');
+      }
+      fields(data, ['version', 'cards']);
+      if (data.version !== 2 || !Array.isArray(data.cards)) throw new Error('新版卡项版本无效');
+      var ids = [];
+      data.cards.forEach(function (card) {
+        fields(card, ['id','name','type','start','end','totalCount','cost','note','usedCount','lastUsedDate','archived','legacyUsedCount','checkins','migration']);
+        if (typeof card.id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(card.id) || ids.includes(card.id)) throw new Error('卡项 id 无效或重复');
+        ids.push(card.id);
+        if (typeof card.archived !== 'boolean' || !nonnegativeInteger(card.legacyUsedCount) || !Array.isArray(card.checkins) || typeof card.note !== 'string') throw new Error('新版卡项数据结构无效');
+        var review = false;
+        if (card.migration !== null) {
+          fields(card.migration, ['original','needsReview','notes','cutoff']);
+          if (!object(card.migration.original) || typeof card.migration.needsReview !== 'boolean' || !Array.isArray(card.migration.notes) || !card.migration.notes.every(function (n) { return typeof n === 'string'; }) || !validDate(card.migration.cutoff)) throw new Error('旧卡迁移说明无效');
+          review = card.migration.needsReview;
+        }
+        if (!review) validateCardFields(card);
+        else if (typeof card.name !== 'string' || !['term','count'].includes(card.type) || typeof card.start !== 'string' || typeof card.end !== 'string' || !nonnegativeInteger(card.totalCount) || typeof card.cost !== 'number' || !Number.isFinite(card.cost)) throw new Error('待核对卡项无效');
+        var dates = [];
+        card.checkins.forEach(function (entry) {
+          fields(entry, ['date','name','type','totalCount','usedCountAfter','incomplete']);
+          if (!validDate(entry.date) || dates.includes(entry.date) || typeof entry.name !== 'string' || !['term','count'].includes(entry.type) || !nonnegativeInteger(entry.totalCount) || !nonnegativeInteger(entry.usedCountAfter) || typeof entry.incomplete !== 'boolean') throw new Error('打卡日期或快照无效');
+          if (entry.type === 'count' && (entry.totalCount < 1 || entry.usedCountAfter > entry.totalCount)) throw new Error('打卡额度快照无效');
+          dates.push(entry.date);
+        });
+        var latest = dates.sort().pop() || '';
+        if (card.usedCount !== cardUsage(card) || card.lastUsedDate !== latest) throw new Error('累计次数或最后日期与记录不一致');
+      });
+      return true;
+    }
+    function migrateLegacyCards(list) {
+      if (!Array.isArray(list)) throw new Error('旧开发卡项不是数组，原数据已保留');
+      var ids = [];
+      var cards = list.map(function (raw, index) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('旧卡结构无效，原数据已保留；请人工核对第 ' + (index + 1) + ' 项');
+        var notes = [];
+        var card = trackedCard({ id: raw.id, name: raw.name, type: raw.type, start: raw.start || '', end: raw.end || '', totalCount: raw.totalCount, cost: raw.cost, note: typeof raw.note === 'string' ? raw.note : '', usedCount: raw.usedCount, lastUsedDate: '' });
+        try { validateCardFields(card); } catch (err) { notes.push(err.message); }
+        if (typeof card.id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(card.id) || ids.includes(card.id)) { notes.push('旧 id 无效或重复'); card.id = 'legacy_' + index; while (ids.includes(card.id)) card.id += '_'; }
+        ids.push(card.id);
+        if (raw.lastUsedDate && (!validDate(raw.lastUsedDate) || raw.lastUsedDate > todayKey() || (card.start && raw.lastUsedDate < card.start) || raw.lastUsedDate > card.end)) notes.push('最后使用日期与有效期或今天矛盾');
+        if (raw.type === 'count' && raw.lastUsedDate && raw.usedCount === 0) notes.push('最后使用日期存在但累计次数为零');
+        if (raw.type === 'term' && raw.usedCount !== 0) notes.push('期限卡含非零累计次数');
+        card.name = typeof raw.name === 'string' ? raw.name : '待核对旧卡';
+        card.type = raw.type === 'count' ? 'count' : 'term';
+        card.start = typeof card.start === 'string' ? card.start : '';
+        card.end = typeof card.end === 'string' ? card.end : '';
+        card.totalCount = nonnegativeInteger(raw.totalCount) ? raw.totalCount : 0;
+        card.cost = typeof raw.cost === 'number' && Number.isFinite(raw.cost) ? raw.cost : 0;
+        card.legacyUsedCount = nonnegativeInteger(raw.usedCount) ? raw.usedCount : 0;
+        if (!notes.length && raw.lastUsedDate) {
+          card.checkins.push({ date: raw.lastUsedDate, name: card.name, type: card.type, totalCount: card.totalCount, usedCountAfter: raw.usedCount, incomplete: true });
+          if (card.type === 'count') card.legacyUsedCount--;
+        }
+        card.migration = { original: cloneData(raw), needsReview: notes.length > 0, notes: notes, cutoff: todayKey() };
+        updateCardCounters(card);
+        return card;
+      });
+      var result = { version: 2, cards: cards };
+      validateCardsV2(result);
+      return result;
+    }
+    function historyCardsOn(date) {
+      var entries = [];
+      state.cards.forEach(function (card) {
+        card.checkins.forEach(function (entry) { if (entry.date === date) entries.push(Object.assign({ cardId: card.id, archived: card.archived }, entry)); });
+      });
+      return entries;
+    }
+    function hasDayContent(rec, date) {
+      var meaningful = function (list) { return Array.isArray(list) && list.some(function (item) { return item && typeof item.text === 'string' && item.text.trim(); }); };
+      return !!(rec && ((Array.isArray(rec.actualBlocks) && rec.actualBlocks.length) || meaningful(rec.goalsSnapshot || rec.goals) || meaningful(rec.routines))) || historyCardsOn(date).length > 0;
+    }
+    function retryPendingSaves() {
+      if (storageReadFailed || saveStatus.unverified || importInProgress) return false;
+      try {
+        Object.keys(saveStatus.pending).forEach(function (key) {
+          var pending = saveStatus.pending[key];
+          if (!pending.valid) throw new Error('仍有无法序列化的修改');
+          if (pending.value === null) storage.removeItem(key); else storage.setItem(key, pending.value);
+        });
+        return verifyPendingSaves();
+      } catch (err) { reportStorageError('日期切换前保存失败：' + err.message); return false; }
+    }
+    function flushSelectedDay() {
+      var weekSaved = state.key === todayKey() ? saveWeekGoals() : saveToday();
+      return weekSaved && retryPendingSaves();
+    }
+    function checkDateChange() {
+      if (!state || !state.key || state.dateMode !== 'today' || state.key === todayKey()) return true;
+      if (!flushSelectedDay()) return false;
+      loadDay(todayKey());
+      renderSelectedDay();
+      return false; // Abort the old DOM event; its controls refer to the previous day.
+    }
+    function renderSelectedDay() {
+      renderDate(); renderBlocks('actual'); renderBlocks('general'); renderGoals(); renderRoutines(); renderCardStatusCapsule();
+      if (state.view === 'cards') renderCards();
+    }
+    // ===== End date/history/card data contracts =====
 
     function defaultBlocks() {
       return [
@@ -1486,6 +1766,7 @@
         return 0;
       });
       goalsEl.innerHTML = '';
+      if (state.key !== todayKey()) goalsEl.appendChild(makeEl('p', 'empty-text', state.goalsRecorded ? '该日目标快照；编辑不改变整周目标' : '该日目标快照未记录；新增仅保存到该日'));
       state.goals.forEach(function (goal) {
         var row = makeEl('div', 'goal-row');
         row.dataset.id = goal.id;
@@ -1573,6 +1854,7 @@
     function enableDragSort(container, getList, setList, saveFn, renderFn) {
       var drag = null;
       container.addEventListener('pointerdown', function (event) {
+        if (!checkDateChange()) return;
         var handle = event.target.closest('.drag-handle');
         if (!handle) return;
         event.preventDefault();
@@ -1581,13 +1863,14 @@
         var id = row.dataset.id;
         var list = getList();
         var startIndex = list.findIndex(function (item) { return item.id === id; });
-        drag = { index: startIndex, active: true };
+        drag = { index: startIndex, active: true, key: state.key };
         container.classList.add('drag-active');
 
         function onMove(ev) {
           if (!drag) return;
+          if (drag.key !== state.key || !checkDateChange()) { drag.active = false; return; }
           ev.preventDefault();
-          var rows = Array.from(container.children);
+          var rows = Array.from(container.children).filter(function (row) { return row.dataset.id; });
           var targetIndex = drag.index;
           rows.forEach(function (r, i) {
             var rect = r.getBoundingClientRect();
@@ -1607,7 +1890,7 @@
           window.removeEventListener('pointermove', onMove);
           window.removeEventListener('pointerup', onUp);
           window.removeEventListener('pointercancel', onUp);
-          if (drag && drag.active) saveFn();
+          if (drag && drag.active && drag.key === state.key && checkDateChange()) saveFn();
           drag = null;
           container.classList.remove('drag-active');
         }
@@ -1623,6 +1906,7 @@
       $('#routineCount').textContent = done + ' / ' + state.routines.length;
       var viewHint = (state.key === todayKey()) ? '' : '（查看日期：' + fmtKey(state.key) + '）';
       $('#dateSub').textContent = state.actualBlocks.length + ' 个今日时段 · ' + state.generalBlocks.length + ' 个一般时段 · 本周第 ' + state.week.split('-W')[1] + ' 周 ' + viewHint;
+      $('#dateSub').textContent += state.dateMode === 'selected' ? ' · 明确选择日期；过去日期的目标和日常仅修改当日记录' : ' · 跟随今天';
       var todoCount = state.todos.filter(function (t) { return !t.done; }).length;
       $('#todoEntryCount').textContent = todoCount + ' 项';
       $('#todoEntrySummary').textContent = todoCount ? ('待办 ' + todoCount + ' 项，按四象限整理') : '暂无待办';
@@ -1635,6 +1919,7 @@
     }
 
     function addBlock(kind) {
+      if (!checkDateChange()) return;
       var list = kind === 'general' ? state.generalBlocks : state.actualBlocks;
       var last = list[list.length - 1];
       var start = last ? last.end : '09:00';
@@ -1768,7 +2053,10 @@
     }
 
     function saveWeekGoals() {
-      saveJSON(getWeekKey(), { goals: state.goals });
+      state.goalsRecorded = true;
+      var weekly = state.key === todayKey() ? saveJSON(getWeekKey(), { goals: state.goals }) : true;
+      var daily = saveToday();
+      return weekly && daily;
     }
 
     // ===== 历史存档：渲染列表 =====
@@ -1779,13 +2067,19 @@
 
   var keys = [];
   try {
-    for (var i = 0; i < storage.length; i++) {
-      var key = storage.key(i);
+    listStorageKeys().forEach(function (key) {
       if (key && key.indexOf('dplan.v1.day.') === 0) {
         keys.push(key.slice('dplan.v1.day.'.length));
       }
-    }
-  } catch (err) {}
+    });
+    state.cards.forEach(function (card) { card.checkins.forEach(function (entry) { if (!keys.includes(entry.date)) keys.push(entry.date); }); });
+    keys = keys.filter(function (key) { return validDate(key) && hasDayContent(loadJSON('dplan.v1.day.' + key, null), key); });
+  } catch (err) {
+    historyBody.textContent = '无法读取历史记录，不能确认记录是否为空。';
+    saveStatus.unverified = true;
+    reportStorageError('历史记录读取失败：' + err.message);
+    return;
+  }
   keys.sort().reverse();
 
   var list = makeEl('div', 'history-list');
@@ -1793,8 +2087,7 @@
     list.appendChild(makeEl('p', 'empty-text', '还没有历史记录'));
   } else {
     keys.forEach(function (key) {
-      var rec = loadJSON('dplan.v1.day.' + key, null);
-      if (!rec || !Array.isArray(rec.actualBlocks) || rec.actualBlocks.length === 0) return;
+      var rec = loadJSON('dplan.v1.day.' + key, null) || {};
 
       var item = makeEl('div', 'history-item');
       item.dataset.key = key;
@@ -1807,7 +2100,7 @@
       var goalsSnapshot = rec.goalsSnapshot || rec.goals || [];
       var goalDone = goalsSnapshot.filter(function (g) { return g.done; }).length;
       var routineDone = rec.routines ? rec.routines.filter(function (r) { return r.done; }).length : 0;
-      left.appendChild(makeEl('div', 'history-summary', blocks.length + ' 个时段 · ' + goalDone + ' 项目标 · ' + routineDone + ' 项日常'));
+      left.appendChild(makeEl('div', 'history-summary', blocks.length + ' 个时段 · ' + goalDone + ' 项已完成目标 · ' + routineDone + ' 项已完成日常 · ' + historyCardsOn(key).length + ' 项打卡'));
       item.appendChild(left);
 
       var rightWrap = makeEl('div');
@@ -1841,15 +2134,22 @@
 }
 
     function deleteHistoryDay(key) {
-  showConfirm('确定要删除 ' + fmtKey(key) + ' 的记录吗？此操作不可撤销！', { type: 'danger' }).then(function(confirmed) {
+  showConfirm('确定要删除 ' + fmtKey(key) + ' 的计划、目标快照和日常吗？卡项打卡历史将保留。此操作不可撤销！', { type: 'danger' }).then(function(confirmed) {
     if (confirmed) {
-      storage.removeItem('dplan.v1.day.' + key);
-      renderHistoryList();
+      try {
+        if (importInProgress) throw new Error('导入正在进行，请稍后再删除');
+        removeSavedItem('dplan.v1.day.' + key);
+        renderHistoryList();
+      } catch (err) {
+        reportStorageError('历史记录删除失败：' + err.message);
+      }
     }
   });
 }
 
-    function openDay(key) {
+    function openDay(key, mode) {
+      if (state.key && !flushSelectedDay()) return false;
+      state.dateMode = mode || 'selected';
       closeReminderOverlay();
       loadDay(key);
       renderDate();
@@ -1859,6 +2159,7 @@
       renderRoutines();
       renderCardStatusCapsule();
       showView('today');
+      return true;
     }
 
     var solarTermCache = {};
@@ -2344,6 +2645,7 @@ function showAlert(message, type) {
   type = type || 'info';
   return new Promise(function(resolve) {
     var overlay = document.createElement('div');
+    overlay.dataset.dateIndependent = 'true';
     overlay.style.cssText = 'position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center;';
     var modal = document.createElement('div');
     modal.style.cssText = 'background:#fff; border-radius:12px; padding:24px 28px; max-width:500px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.3); border-top:6px solid ' + (type === 'danger' ? '#e74c3c' : (type === 'warning' ? '#f39c12' : '#3498db')) + ';';
@@ -2435,9 +2737,10 @@ function showAlert(message, type) {
     function renderCardStatusCapsule() {
       var targetKey = state.key || todayKey();
       var pending = state.cards.filter(function (card) {
+        if (card.archived || (card.migration && card.migration.needsReview)) return false;
         var startOk = !card.start || card.start <= targetKey;
         var endOk = card.end >= targetKey;
-        var notChecked = card.lastUsedDate !== targetKey;
+        var notChecked = !cardCheckedOn(card, targetKey);
         var hasRemaining = (card.type !== 'count') || (card.usedCount < card.totalCount);
         return startOk && endOk && notChecked && hasRemaining;
       }).length;
@@ -2454,12 +2757,12 @@ function showAlert(message, type) {
     function remainingDays(card) {
       if (!card.end) return -1;
       var end = parseKey(card.end);
-      var today = parseKey(todayKey());
+      var today = parseKey(state.key || todayKey());
       return Math.floor((end - today) / 86400000);
     }
 
     function remainingText(card) {
-      var today = todayKey();
+      var today = state.key || todayKey();
       if (card.start && card.start > today) {
         return '未开始';
       }
@@ -2485,7 +2788,7 @@ function showAlert(message, type) {
     }
 
     function expiredUnused(card) {
-      var today = todayKey();
+      var today = state.key || todayKey();
       if (card.end && today > card.end) {
         if (card.type === 'count') return card.usedCount < card.totalCount;
         return !card.lastUsedDate;
@@ -2494,23 +2797,19 @@ function showAlert(message, type) {
     }
 
     function toggleCheckin(id) {
+      if (!checkDateChange()) return;
       var card = state.cards.find(function (c) { return c.id === id; });
-      if (!card) return;
+      if (!card || card.archived) return;
       var targetDate = state.key || todayKey();
-      if (card.start && card.start > targetDate) return;
-      if (card.type === 'count' && card.usedCount >= card.totalCount) return;
-
-      if (card.lastUsedDate === targetDate) {
-        card.lastUsedDate = '';
-        if (card.type === 'count') {
-          card.usedCount = Math.max(0, (card.usedCount || 0) - 1);
-        }
+      if (card.migration && card.migration.needsReview) { showAlert('旧卡数据矛盾，原始信息已保留，需要人工核对后才能打卡。', 'warning'); return; }
+      if (cardCheckedOn(card, targetDate)) {
+        card.checkins = card.checkins.filter(function (entry) { return entry.date !== targetDate; });
       } else {
-        card.lastUsedDate = targetDate;
-        if (card.type === 'count') {
-          card.usedCount = (card.usedCount || 0) + 1;
-        }
+        if (targetDate > todayKey() || (card.start && card.start > targetDate) || targetDate > card.end || (card.type === 'count' && card.usedCount >= card.totalCount)) { showAlert('该日期不允许新增打卡：请核对有效期、未来日期和剩余次数。', 'warning'); return; }
+        if (card.migration && targetDate < card.migration.cutoff && targetDate !== card.migration.original.lastUsedDate) { showAlert('旧卡在该日期的历史不完整，不能猜测或重复补记。', 'warning'); return; }
+        card.checkins.push({ date: targetDate, name: card.name, type: card.type, totalCount: card.totalCount, usedCountAfter: card.usedCount + (card.type === 'count' ? 1 : 0), incomplete: !!(card.migration && targetDate < card.migration.cutoff) });
       }
+      updateCardCounters(card);
       saveCards();
       renderCards();
       if (cardDetailId === id) renderCardDetail(id);
@@ -2518,7 +2817,7 @@ function showAlert(message, type) {
 
     function renderCards() {
       var targetDate = state.key || todayKey();
-      var allCards = state.cards.slice();
+      var allCards = state.cards.filter(function (card) { return !card.archived; });
       var validCards = allCards.filter(function(card) {
         return card.end >= targetDate || (card.start && card.start > targetDate);
       });
@@ -2536,8 +2835,8 @@ function showAlert(message, type) {
           var bStart = b.start && b.start > targetDate;
           if (aStart && !bStart) return 1;
           if (!aStart && bStart) return -1;
-          var aChecked = a.lastUsedDate === targetDate;
-          var bChecked = b.lastUsedDate === targetDate;
+          var aChecked = cardCheckedOn(a, targetDate);
+          var bChecked = cardCheckedOn(b, targetDate);
           if (aChecked && !bChecked) return 1;
           if (!aChecked && bChecked) return -1;
           return String(a.end).localeCompare(String(b.end));
@@ -2578,7 +2877,7 @@ function showAlert(message, type) {
         var top = makeEl('div', 'card-item-top');
         top.appendChild(makeEl('div', 'card-name', card.name));
         if (!state.showExpired) {
-          top.appendChild(makeEl('span', 'card-status', card.lastUsedDate === targetDate ? '✅' : '❌'));
+          top.appendChild(makeEl('span', 'card-status', cardCheckedOn(card, targetDate) ? '✅' : '❌'));
         } else {
           top.appendChild(makeEl('span', 'card-status', '🗑️'));
         }
@@ -2593,6 +2892,7 @@ function showAlert(message, type) {
           meta.appendChild(makeEl('span', 'meta-chip', remainingText(card)));
         }
         if (costText(card)) meta.appendChild(makeEl('span', 'meta-chip', costText(card)));
+        if (card.migration) meta.appendChild(makeEl('span', 'meta-chip', card.migration.needsReview ? '旧数据需人工核对：' + card.migration.notes.join('；') : '旧历史不完整；未知日期消耗 ' + card.legacyUsedCount + ' 次'));
         item.appendChild(meta);
 
         if (!state.showExpired && expiredUnused(card)) {
@@ -2600,17 +2900,27 @@ function showAlert(message, type) {
         }
 
         var actions = makeEl('div', 'card-actions');
+        if (state.showExpired && cardCheckedOn(card, targetDate) && !(card.migration && card.migration.needsReview)) {
+          var undoBtn = makeEl('button', 'mini-btn', '撤销当日打卡');
+          undoBtn.type = 'button';
+          undoBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleCheckin(card.id); });
+          actions.appendChild(undoBtn);
+        }
         if (state.showExpired) {
           var restoreBtn = makeEl('button', 'mini-btn', '恢复');
           restoreBtn.type = 'button';
           restoreBtn.addEventListener('click', function(e) {
   e.stopPropagation();
   var newEnd = prompt('请输入新的截止日期 (YYYY-MM-DD)：', targetDate);
-  if (newEnd && newEnd.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    card.end = newEnd;
-    if (card.start && card.start < targetDate) {
-      card.start = targetDate;
-    }
+  if (newEnd && validDate(newEnd)) {
+    var restored = cloneData(card);
+    restored.end = newEnd;
+    if (restored.start && restored.start < targetDate) restored.start = targetDate;
+    try {
+      if (card.migration && card.migration.needsReview) throw new Error('旧卡数据需要人工核对');
+      validateCardFields(restored);
+    } catch (err) { showAlert(err.message, 'warning'); return; }
+    Object.assign(card, restored);
     saveCards();
     renderCards();
   } else if (newEnd !== null) {
@@ -2620,16 +2930,16 @@ function showAlert(message, type) {
           actions.appendChild(restoreBtn);
         } else {
           var canCheckin = true;
-          if (card.start && card.start > targetDate) canCheckin = false;
-          if (card.type === 'count' && card.usedCount >= card.totalCount) canCheckin = false;
+          var isChecked = cardCheckedOn(card, targetDate);
+          if (!isChecked && ((card.start && card.start > targetDate) || targetDate > card.end || targetDate > todayKey() || (card.type === 'count' && card.usedCount >= card.totalCount))) canCheckin = false;
+          if (card.migration && (card.migration.needsReview || (!isChecked && targetDate < card.migration.cutoff && targetDate !== card.migration.original.lastUsedDate))) canCheckin = false;
 
-          var isChecked = (card.lastUsedDate === targetDate);
-          var btnLabel = isChecked ? '已打卡' : '打卡';
+          var btnLabel = isChecked ? '撤销当日打卡' : '打卡';
           var checkinBtn = makeEl('button', 'mini-btn', btnLabel);
           checkinBtn.type = 'button';
           if (!canCheckin) {
             checkinBtn.disabled = true;
-            checkinBtn.textContent = '未开始';
+            checkinBtn.textContent = '该日期不可新增打卡';
           } else {
             checkinBtn.addEventListener('click', function(e) {
               e.stopPropagation();
@@ -2647,14 +2957,14 @@ function showAlert(message, type) {
         });
         actions.appendChild(detailBtn);
 
-        var delBtn = makeEl('button', 'mini-btn', '删除');
+        var delBtn = makeEl('button', 'mini-btn', '归档');
         delBtn.type = 'button';
         delBtn.style.color = 'var(--danger)';
         delBtn.style.borderColor = 'var(--danger)';
         delBtn.addEventListener('click', function(e) {
           e.stopPropagation();
-          if (confirm('确定要删除卡“' + card.name + '”吗？')) {
-            state.cards = state.cards.filter(function(c) { return c.id !== card.id; });
+          if (confirm('确定要归档卡“' + card.name + '”吗？打卡历史将保留。')) {
+            card.archived = true;
             saveCards();
             renderCards();
           }
@@ -2731,25 +3041,28 @@ function showAlert(message, type) {
     function saveTodos() { saveJSON('dplan.v1.todos', state.todos); }
 
     function loadCards() {
-      var list = loadJSON('dplan.v1.cards', null);
-      if (!Array.isArray(list)) return [];
-      return list.map(function (card) {
-        return {
-          id: card.id || uid(),
-          name: card.name || '',
-          type: card.type || 'term',
-          start: card.start || '',
-          end: card.end || '',
-          totalCount: Number(card.totalCount) || 0,
-          cost: Number(card.cost) || 0,
-          note: card.note || '',
-          usedCount: Number(card.usedCount) || 0,
-          lastUsedDate: card.lastUsedDate || ''
-        };
-      });
+      try {
+        var raw = storage.getItem(CARDS_KEY);
+        if (raw !== null) {
+          var data = JSON.parse(raw); validateCardsV2(data); return data.cards;
+        }
+        var old = storage.getItem('dplan.v1.cards');
+        if (old === null) return [];
+        var migrated = migrateLegacyCards(JSON.parse(old));
+        saveJSON(CARDS_KEY, migrated); // Never rewrite or remove the legacy development key.
+        return migrated.cards;
+      } catch (err) {
+        storageReadFailed = true;
+        reportStorageError('卡项加载停止，原始开发数据保留：' + err.message);
+        return [];
+      }
     }
 
-    function saveCards() { saveJSON('dplan.v1.cards', state.cards); }
+    function saveCards() {
+      var data = { version: 2, cards: state.cards };
+      try { validateCardsV2(data); } catch (err) { reportStorageError('卡项未保存：' + err.message); return false; }
+      return saveJSON(CARDS_KEY, data);
+    }
 
     function loadTimeTemplates() {
       var data = loadJSON('dplan.v1.time_templates', null);
@@ -2780,23 +3093,21 @@ function showAlert(message, type) {
         state.actualBlocks = [];
       }
 
-      if (rec && Array.isArray(rec.routines)) {
-        state.routines = rec.routines;
+      if (rec) {
+        state.routines = Array.isArray(rec.routines) ? rec.routines : [];
       } else {
-        var template = routinesTemplate();
+        var template = key === todayKey() ? routinesTemplate() : [];
         state.routines = template.map(function (r) {
           return { id: r.id, text: r.text, done: false };
         });
       }
 
-      state.goals = loadWeekGoals();
-      if (state.goals.length === 0) {
-        state.goals = [
-          { id: uid(), text: '', done: false },
-          { id: uid(), text: '', done: false },
-          { id: uid(), text: '', done: false }
-        ];
-        saveWeekGoals();
+      state.goalsRecorded = !!(rec && (Array.isArray(rec.goalsSnapshot) || Array.isArray(rec.goals)));
+      if (key !== todayKey()) state.goals = cloneData(rec && (rec.goalsSnapshot || rec.goals) || []);
+      else {
+        var weekly = loadJSON(getWeekKey(), null);
+        state.goals = weekly && Array.isArray(weekly.goals) ? weekly.goals : state.goalsRecorded ? cloneData(rec.goalsSnapshot || rec.goals) : defaultGoals();
+        state.goalsRecorded = true; // Capture this day's loaded weekly goals even if rollover happens before an edit.
       }
     }
 
@@ -2805,10 +3116,10 @@ function showAlert(message, type) {
         actualBlocks: state.actualBlocks,
         routines: state.routines
       };
-      dayData.goalsSnapshot = state.goals.map(function(g) {
+      if (state.goalsRecorded || state.key === todayKey()) dayData.goalsSnapshot = state.goals.map(function(g) {
         return { id: g.id, text: g.text, done: g.done };
       });
-      saveJSON('dplan.v1.day.' + state.key, dayData);
+      return saveJSON('dplan.v1.day.' + state.key, dayData);
     }
 
     function routinesTemplate() {
@@ -2906,7 +3217,7 @@ function showAlert(message, type) {
     $('#cardTotal').focus();
     return;
   }
-  state.cards.push({
+  var newCard = trackedCard({
     id: uid(),
     name: name,
     type: type,
@@ -2918,6 +3229,8 @@ function showAlert(message, type) {
     usedCount: 0,
     lastUsedDate: ''
   });
+  try { validateCardFields(newCard); } catch (err) { await showAlert(err.message, 'warning'); return; }
+  state.cards.push(newCard);
   saveCards();
   closeCardForm();
   renderCards();
@@ -2957,7 +3270,7 @@ function showAlert(message, type) {
         ['类型', typeLabel(card)],
         ['有效期', (card.start || '') + ' 至 ' + (card.end || '')],
         ['剩余', remainingText(card)],
-        ['今日是否已用', card.lastUsedDate === todayKey() ? '✅ 已使用' : '❌ 未使用'],
+        ['所选日期是否已用', cardCheckedOn(card, state.key || todayKey()) ? '✅ 已使用' : '❌ 未使用'],
         ['费用', '¥' + (card.cost || 0)],
         ['费用效率', costText(card) || '未填写费用']
       ].forEach(function (pair) {
@@ -3069,9 +3382,10 @@ function showAlert(message, type) {
     }
 
     function deleteCard(id) {
-  showConfirm('⚠️ 确定要删除这张卡吗？此操作不可撤销！', { type: 'danger' }).then(function(confirmed) {
+  showConfirm('确定要归档这张卡吗？已有打卡历史将保留。', { type: 'warning' }).then(function(confirmed) {
     if (confirmed) {
-      state.cards = state.cards.filter(function (c) { return c.id !== id; });
+      var card = state.cards.find(function (c) { return c.id === id; });
+      if (card) card.archived = true;
       saveCards();
       closeCardDetail();
       renderCards();
@@ -3082,6 +3396,8 @@ function showAlert(message, type) {
     // ---------- 状态和初始化 ----------
     var state = {
       view: 'today',
+      dateMode: 'today',
+      goalsRecorded: false,
       key: '',
       week: '',
       generalBlocks: [],
@@ -3133,6 +3449,7 @@ function showAlert(message, type) {
 
     enableDragSort(routinesEl, function () { return state.routines; }, function (list) { state.routines = list; }, function () {
       saveToday();
+      if (state.key !== todayKey()) return;
       var template = routinesTemplate();
       var order = state.routines.map(function (r) { return r.id; });
       template.sort(function (a, b) {
@@ -3246,9 +3563,9 @@ function showAlert(message, type) {
       var routine = state.routines.find(function (r) { return r.id === input.dataset.id; });
       if (!routine) return;
       routine.text = input.value;
-      var template = routinesTemplate();
+      var template = state.key === todayKey() ? routinesTemplate() : [];
       var t = template.find(function (r) { return r.id === input.dataset.id; });
-      if (t) {
+      if (t && state.key === todayKey()) {
         t.text = input.value;
         saveJSON('dplan.v1.routines', template);
       }
@@ -3267,7 +3584,7 @@ function showAlert(message, type) {
         saveToday();
       } else if (btn.dataset.action === 'delete-routine') {
         state.routines = state.routines.filter(function (r) { return r.id !== id; });
-        saveJSON('dplan.v1.routines', routinesTemplate().filter(function (r) { return r.id !== id; }));
+        if (state.key === todayKey()) saveJSON('dplan.v1.routines', routinesTemplate().filter(function (r) { return r.id !== id; }));
         renderRoutines();
         saveToday();
       }
@@ -3276,9 +3593,11 @@ function showAlert(message, type) {
     $('#addRoutineBtn').addEventListener('click', function () {
       var routine = { id: uid(), text: '' };
       state.routines.push({ id: routine.id, text: routine.text, done: false });
-      var template = routinesTemplate();
-      template.push(routine);
-      saveJSON('dplan.v1.routines', template);
+      var template = state.key === todayKey() ? routinesTemplate() : [];
+      if (state.key === todayKey()) {
+        template.push(routine);
+        saveJSON('dplan.v1.routines', template);
+      }
       renderRoutines();
       saveToday();
       var inputs = routinesEl.querySelectorAll('.routine-input');
@@ -3556,19 +3875,14 @@ function showAlert(message, type) {
 
     document.querySelectorAll('.nav-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        if (btn.dataset.view === 'today') openDay(todayKey());
+        if (btn.dataset.view === 'today') openDay(todayKey(), 'today');
         else showView(btn.dataset.view);
       });
     });
 
     $('#openTodosBtn').addEventListener('click', function () { showView('todos'); });
     $('#backTodayBtn').addEventListener('click', function () {
-      loadDay(todayKey());
-      renderDate();
-      renderBlocks('actual');
-      renderGoals();
-      renderRoutines();
-      showView('today');
+      openDay(todayKey(), 'today');
     });
 
     $('#historyBtn').addEventListener('click', function () {
@@ -3590,8 +3904,7 @@ function showAlert(message, type) {
       var item = event.target.closest('.history-item');
       if (!item) return;
       var key = item.dataset.key;
-      var rec = loadJSON('dplan.v1.day.' + key, null);
-      if (!rec) return;
+      var rec = loadJSON('dplan.v1.day.' + key, null) || {};
 
       var overlay = $('#historyOverlay');
       var historyBody = $('#historyBody');
@@ -3630,7 +3943,7 @@ function showAlert(message, type) {
       var goalsSnapshot = rec.goalsSnapshot || rec.goals || [];
       var doneGoals = goalsSnapshot.filter(function (g) { return g.done; });
       if (doneGoals.length === 0) {
-        goalList.appendChild(makeEl('p', 'empty-text', '本周无目标'));
+        goalList.appendChild(makeEl('li', 'empty-text', Array.isArray(rec.goalsSnapshot) || Array.isArray(rec.goals) ? '该日没有已完成目标' : '该日目标快照未记录'));
       } else {
         doneGoals.forEach(function (goal) {
           var li = makeEl('li');
@@ -3664,9 +3977,7 @@ function showAlert(message, type) {
       var cardsSection = makeEl('section', 'detail-section');
       cardsSection.appendChild(makeEl('h3', '', '今日使用的卡'));
       var cardList = makeEl('ul', 'detail-list');
-      var checkedCards = state.cards.filter(function (card) {
-        return card.lastUsedDate === key;
-      });
+      var checkedCards = historyCardsOn(key);
       if (checkedCards.length === 0) {
         cardList.appendChild(makeEl('p', 'empty-text', '当日无打卡记录'));
       } else {
@@ -3675,10 +3986,12 @@ function showAlert(message, type) {
           var typeLabel = card.type === 'count' ? '次卡' : '期限卡';
           var extra = '';
           if (card.type === 'count') {
-            extra = '（已用 ' + (card.usedCount || 0) + '/' + (card.totalCount || 0) + ' 次）';
+            extra = '（打卡时已用 ' + card.usedCountAfter + '/' + card.totalCount + ' 次）';
           }
           li.appendChild(makeEl('span', 'detail-goal-mark', '✅'));
           li.appendChild(makeEl('span', '', card.name + '（' + typeLabel + '）' + extra));
+          if (card.incomplete) li.appendChild(makeEl('span', '', ' · 旧记录：名称、类型及额度为迁移时信息，历史不完整'));
+          if (card.archived) li.appendChild(makeEl('span', '', ' · 卡项已归档'));
           cardList.appendChild(li);
         });
       }
@@ -4100,16 +4413,23 @@ function showAlert(message, type) {
     $('#cardDetailSaveBtn').addEventListener('click', function() {
       var card = state.cards.find(function (c) { return c.id === cardDetailId; });
       if (!card) return;
+      var candidate = cloneData(card);
       var name = document.getElementById('cardEdit_name').value.trim();
       if (!name) return;
-      card.name = name;
+      candidate.name = name;
       var type = document.getElementById('cardEdit_type').value;
-      card.type = type;
-      card.start = document.getElementById('cardEdit_start').value;
-      card.end = document.getElementById('cardEdit_end').value;
-      card.totalCount = Number(document.getElementById('cardEdit_totalCount').value) || 0;
-      card.cost = Number(document.getElementById('cardEdit_cost').value) || 0;
-      card.note = document.getElementById('cardEdit_note').value;
+      candidate.type = type;
+      candidate.start = document.getElementById('cardEdit_start').value;
+      candidate.end = document.getElementById('cardEdit_end').value;
+      candidate.totalCount = Number(document.getElementById('cardEdit_totalCount').value) || 0;
+      candidate.cost = Number(document.getElementById('cardEdit_cost').value) || 0;
+      candidate.note = document.getElementById('cardEdit_note').value;
+      try {
+        if (card.migration && card.migration.needsReview) throw new Error('旧卡原始数据需人工核对，本批不自动修正矛盾记录');
+        if (candidate.type !== card.type && (card.checkins.length || card.legacyUsedCount)) throw new Error('已有使用历史的卡项不能更换类型，请新建卡项');
+        validateCardFields(candidate);
+      } catch (err) { showAlert(err.message, 'warning'); return; }
+      Object.assign(card, candidate);
       saveCards();
       var editBtn = $('#cardDetailEditBtn');
       var cancelBtn = $('#cardDetailCancelBtn');
@@ -4134,26 +4454,22 @@ function showAlert(message, type) {
       renderCards();
     });
 
-    // ========== 固定日常每日重置 ==========
-    function resetRoutinesIfNewDay() {
-      var lastDate = loadJSON('dplan.v1.lastVisitDate', null);
-      var today = todayKey();
-      if (lastDate !== today) {
-        state.routines.forEach(function (routine) {
-          routine.done = false;
-        });
-        saveToday();
-        var template = routinesTemplate();
-        template.forEach(function (r) {
-          r.done = false;
-        });
-        saveJSON('dplan.v1.routines', template);
-        renderRoutines();
-        saveJSON('dplan.v1.lastVisitDate', today);
-      }
-    }
-
-    resetRoutinesIfNewDay();
+    // Dated records own completion state; visit markers never reset existing data.
+    ['click', 'input', 'change', 'keydown'].forEach(function (type) {
+      document.addEventListener(type, function (event) {
+        if (importInProgress) return;
+        // Failure notices and read-only backup controls remain usable while rollover is blocked.
+        if (event.target && event.target.closest && event.target.closest('[data-date-independent], #exportBtn, #exportJsonBtn, #exportCsvBtn, #exportTextBtn, #exportCloseBtn, #exportCloseFootBtn')) return;
+        if (!checkDateChange()) {
+          event.preventDefault(); event.stopImmediatePropagation();
+          showToast(state.key === todayKey() ? '已切换到今天，请重新执行刚才的操作' : '旧日期仍有未保存修改，暂不切换日期');
+        }
+      }, true);
+    });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && !importInProgress) checkDateChange(); });
+    window.addEventListener('focus', function () { if (!importInProgress) checkDateChange(); });
+    window.addEventListener('pageshow', function () { if (!importInProgress) checkDateChange(); });
+    window.setInterval(function () { if (!importInProgress) checkDateChange(); }, 1000);
 
     // ========== 导出 / 导入 ==========
     function downloadFile(filename, content, mime) {
@@ -4170,22 +4486,34 @@ function showAlert(message, type) {
 
     function collectAllData() {
       var data = { exportedAt: new Date().toISOString(), version: 1 };
-      try {
-        for (var i = 0; i < storage.length; i++) {
-          var key = storage.key(i);
-          if (key && key.indexOf('dplan.') === 0) {
-            data[key] = storage.getItem(key);
-          }
-        }
-      } catch (err) {}
+      var keys = listStorageKeys().filter(function (key) { return key.indexOf('dplan.') === 0; }).sort();
+      if (keys.length === 0) throw new Error('没有可备份的开发数据');
+      if (keys.includes(CARDS_KEY)) data.version = 2;
+      keys.forEach(function (key) {
+        var value = storage.getItem(key);
+        if (typeof value !== 'string') throw new Error('备份读取失败：' + key);
+        data[key] = value;
+      });
+      var checkedKeys = listStorageKeys().filter(function (key) { return key.indexOf('dplan.') === 0; }).sort();
+      if (JSON.stringify(keys) !== JSON.stringify(checkedKeys)) throw new Error('备份期间数据键发生变化，请重试');
+      keys.forEach(function (key) {
+        if (storage.getItem(key) !== data[key]) throw new Error('备份期间数据发生变化：' + key);
+      });
       return data;
     }
 
     function exportJson() {
-      var data = collectAllData();
-      var json = JSON.stringify(data, null, 2);
-      downloadFile('每日计划备份-' + todayKey() + '.json', json, 'application/json');
-      showToast('✅ 全部数据已导出为 JSON 备份');
+      try {
+        if (importInProgress) throw new Error('请等待导入结束');
+        var data = collectAllData();
+        var json = JSON.stringify(data, null, 2);
+        downloadFile('每日计划备份-' + todayKey() + '.json', json, 'application/json');
+        showToast('✅ 完整 JSON 备份已生成（仅含已持久化开发数据）并发起下载，请确认文件已保存');
+        return true;
+      } catch (err) {
+        showAlert('完整备份未生成：' + err.message + '。请勿将此次操作视为备份成功。', 'warning');
+        return false;
+      }
     }
 
     function exportTodayCsv() {
@@ -4244,26 +4572,218 @@ function showAlert(message, type) {
       showToast('✅ 今日计划已导出为文本');
     }
 
-    function importJson(file) {
-      var reader = new FileReader();
-      reader.onload = function () {
-        try {
-          var data = JSON.parse(String(reader.result));
-          if (!data || typeof data !== 'object') throw new Error('格式错误');
-          var count = 0;
-          Object.keys(data).forEach(function (key) {
-            if (key.indexOf('dplan.') === 0 && typeof data[key] === 'string') {
-              storage.setItem(key, data[key]);
-              count++;
+    // Version 1 keeps the original readable envelope and JSON-encoded string values.
+    // Unknown fields are rejected at every level instead of being silently discarded.
+    function validateBackup(data) {
+      function fail(path) { throw new Error('备份校验失败：' + path); }
+      function record(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
+      function text(value) { return typeof value === 'string'; }
+      function bool(value) { return typeof value === 'boolean'; }
+      function number(value) { return typeof value === 'number' && Number.isFinite(value) && value >= 0; }
+      function id(value) { return text(value) && /^[A-Za-z0-9_-]+$/.test(value); }
+      function date(value) {
+        if (!text(value) || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+        var parsed = new Date(value + 'T00:00:00Z');
+        return !isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+      }
+      function optionalDate(value) { return value === '' || date(value); }
+      function time(value) { return text(value) && (value === '' || /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)); }
+      function array(check) {
+        return function (value, path) {
+          if (!Array.isArray(value)) return false;
+          value.forEach(function (item, index) {
+            if (!check(item, path + '[' + index + ']')) fail(path + '[' + index + ']');
+          });
+          return true;
+        };
+      }
+      function shape(fields, required) {
+        return function (value, path) {
+          if (!record(value)) return false;
+          Object.keys(value).forEach(function (key) {
+            if (!Object.prototype.hasOwnProperty.call(fields, key) || !fields[key](value[key], path + '.' + key)) fail(path + '.' + key);
+          });
+          required.forEach(function (key) {
+            if (!Object.prototype.hasOwnProperty.call(value, key)) fail(path + '.' + key + ' 缺失');
+          });
+          return true;
+        };
+      }
+      function uniqueList(check, requireId) {
+        return function (value, path) {
+          if (!array(check)(value, path)) return false;
+          var ids = [];
+          value.forEach(function (item) {
+            if (requireId && !id(item.id)) fail(path + '.id');
+            if (item.id !== undefined) {
+              if (ids.indexOf(item.id) >= 0) fail(path + ' 包含重复 id');
+              ids.push(item.id);
             }
           });
-          showToast('✅ 成功导入 ' + count + ' 条数据，页面即将刷新');
+          return true;
+        };
+      }
+      var block = shape({ id: id, start: time, end: time, title: text, color: text, emoji: text }, ['start', 'end', 'title']);
+      var blocks = uniqueList(block, true);
+      var goal = shape({ id: id, text: text, done: bool }, ['id', 'text', 'done']);
+      var routine = shape({ id: id, text: text, done: bool }, ['id', 'text']);
+      var goals = uniqueList(goal, true);
+      var routines = uniqueList(routine, true);
+      var template = shape({ id: id, name: text, blocks: uniqueList(block, false) }, ['id', 'name', 'blocks']);
+      var generalTemplate = shape({ id: id, name: text, blocks: blocks }, ['id', 'name', 'blocks']);
+      var todo = shape({
+        id: id, text: text, quadrant: function (v) { return [1, 2, 3, 4].indexOf(v) >= 0; },
+        metricType: function (v) { return ['text', 'timer', 'counter'].indexOf(v) >= 0; },
+        metricValue: number, targetValue: number, dueDate: optionalDate, estimate: number,
+        tags: array(text), note: text, done: bool, _notified: bool
+      }, ['id', 'text', 'quadrant', 'metricType', 'metricValue', 'targetValue', 'dueDate', 'estimate', 'tags', 'note', 'done']);
+      var card = shape({
+        id: id, name: text, type: function (v) { return v === 'term' || v === 'count'; },
+        start: optionalDate, end: date, totalCount: number, cost: number, note: text,
+        usedCount: number, lastUsedDate: optionalDate
+      }, ['id', 'name', 'type', 'start', 'end', 'totalCount', 'cost', 'note', 'usedCount', 'lastUsedDate']);
+      var importantDates = function (value, path) {
+        if (!record(value)) return false;
+        Object.keys(value).forEach(function (key) {
+          if (!date(key)) fail(path + '.' + key);
+          // The application explicitly supports the earlier string representation.
+          if (!text(value[key]) && !array(shape({ title: text, color: text }, ['title', 'color']))(value[key], path + '.' + key)) fail(path + '.' + key);
+        });
+        return true;
+      };
+      var generalTemplates = function (value, path) {
+        if (!shape({ list: uniqueList(generalTemplate, true), activeId: function (v) { return v === null || id(v); } }, ['list', 'activeId'])(value, path)) return false;
+        return value.activeId === null || value.list.some(function (item) { return item.id === value.activeId; });
+      };
+      var fixed = {
+        'dplan.v2.cards': function (value) { return validateCardsV2(value); },
+        'dplan.v1.general_templates': generalTemplates,
+        'dplan.v1.time_templates': shape({ current: template, list: uniqueList(template, true) }, ['current', 'list']),
+        'dplan.v1.tags': array(text), 'dplan.v1.todos': uniqueList(todo, true),
+        'dplan.v1.cards': uniqueList(card, true), 'dplan.v1.routines': routines,
+        'dplan.v1.important_dates': importantDates, 'dplan.v1.lastVisitDate': date,
+        'dplan.v1.ui.generalCollapsed': bool, 'dplan.v1.ui.goalsCollapsed': bool,
+        'dplan.v1.ui.routinesCollapsed': bool
+      };
+      if (!record(data) || (data.version !== 1 && data.version !== 2) || (data.version === 2 && !Object.prototype.hasOwnProperty.call(data, CARDS_KEY))) fail('仅支持 version: 1 或包含新版卡项的 version: 2 备份');
+      if (!text(data.exportedAt) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(data.exportedAt) || !Number.isFinite(Date.parse(data.exportedAt)) || new Date(data.exportedAt).toISOString() !== data.exportedAt) fail('exportedAt');
+      var keys = [];
+      Object.keys(data).forEach(function (key) {
+        if (key === 'version' || key === 'exportedAt') return;
+        assertDevKey(key);
+        var check = Object.prototype.hasOwnProperty.call(fixed, key) ? fixed[key] : null;
+        if (key.indexOf('dplan.v1.day.') === 0 && date(key.slice('dplan.v1.day.'.length))) {
+          check = shape({ actualBlocks: blocks, routines: routines, goalsSnapshot: goals, goals: goals }, ['actualBlocks', 'routines']);
+        } else if (/^dplan\.v1\.week\.\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$/.test(key)) {
+          check = shape({ goals: goals }, ['goals']);
+        }
+        if (!check) fail('不支持的数据键 ' + key);
+        if (!text(data[key])) fail(key + ' 必须是 JSON 字符串');
+        var value;
+        try { value = JSON.parse(data[key]); } catch (err) { fail(key + ' 的内部 JSON 无效'); }
+        if (!check(value, key)) fail(key + ' 的数据结构无效');
+        keys.push(key);
+      });
+      if (keys.length === 0) fail('没有可导入的开发数据');
+      return keys.sort();
+    }
+
+    function prepareBackup(data) {
+      validateBackup(data); // Validate the entire source before conversion or storage reads.
+      var prepared = cloneData(data);
+      if (!Object.prototype.hasOwnProperty.call(prepared, CARDS_KEY) && Object.prototype.hasOwnProperty.call(prepared, 'dplan.v1.cards')) {
+        prepared[CARDS_KEY] = JSON.stringify(migrateLegacyCards(JSON.parse(prepared['dplan.v1.cards'])));
+        prepared.version = 2;
+      }
+      return prepared;
+    }
+
+    function snapshotImport(keys) {
+      var previous = Object.create(null);
+      keys.forEach(function (key) { previous[key] = storage.getItem(key); });
+      return previous;
+    }
+
+    function applyBackup(data, keys, previous) {
+      // Recheck after the asynchronous confirmation before any write.
+      keys.forEach(function (key) {
+        if (storage.getItem(key) !== previous[key]) throw new Error('确认期间数据发生变化，已取消导入：' + key);
+      });
+      var attempted = [];
+      try {
+        keys.forEach(function (key) {
+          attempted.push(key);
+          storage.setItem(key, data[key]);
+        });
+        keys.forEach(function (key) {
+          if (storage.getItem(key) !== data[key]) throw new Error('导入写入验证失败：' + key);
+        });
+      } catch (err) {
+        attempted.reverse().forEach(function (key) {
+          try {
+            if (previous[key] === null) storage.removeItem(key);
+            else storage.setItem(key, previous[key]);
+          } catch (restoreError) { /* Verify every affected key below, even if restoration threw. */ }
+        });
+        var uncertain = keys.filter(function (key) {
+          try { return storage.getItem(key) !== previous[key]; } catch (readError) { return true; }
+        });
+        if (uncertain.length) {
+          storageReadFailed = true;
+          throw new Error('导入失败且恢复不完整；以下键可能受影响：' + uncertain.join('、') + '。已停止自动保存，请保留页面并处理存储异常。原错误：' + err.message);
+        }
+        throw new Error('导入失败，已验证受影响键恢复到导入前的值：' + err.message);
+      }
+    }
+
+    function importJson(file) {
+      if (importInProgress) {
+        showAlert('已有导入正在进行，请等待完成。', 'warning');
+        return;
+      }
+      importInProgress = true;
+      var reader = new FileReader();
+      reader.onload = async function () {
+        var succeeded = false;
+        var writing = false;
+        try {
+          var data = prepareBackup(JSON.parse(String(reader.result)));
+          var keys = validateBackup(data);
+          var previous = snapshotImport(keys);
+          var overwritten = keys.filter(function (key) { return previous[key] !== null; });
+          var preview = keys.slice(0, 12).join('、') + (keys.length > 12 ? '，另 ' + (keys.length - 12) + ' 个键' : '');
+          var confirmed = await showConfirm('将写入备份中的全部 ' + keys.length + ' 个开发数据键，其中覆盖 ' + overwritten.length + ' 个已有键。键名预览：' + preview + '。备份中未包含的键保留。确认期间暂停自动保存；导入后刷新会丢弃页面未保存修改。仅使用虚构测试数据，是否继续？', { type: 'warning', confirmText: '确认导入并覆盖' });
+          if (!confirmed) return;
+          writing = true;
+          setSavePhase('recovering');
+          applyBackup(data, keys, previous);
+          succeeded = true;
+          showToast('✅ 已写入并验证 ' + keys.length + ' 个数据键，页面即将刷新');
           setTimeout(function () { location.reload(); }, 1500);
         } catch (err) {
-          showAlert('导入失败：文件不是有效的备份格式。', 'warning');
+          if (writing) {
+            // The existing import dialog carries the detailed rollback result.
+            saveStatus.unverified = true;
+            saveStatus.faultActive = true;
+            saveStatus.warned = true;
+            saveStatus.lastError = '导入未完成，请核对恢复结果后重新加载：' + err.message;
+            setSavePhase('failed');
+          }
+          showAlert('导入未完成：' + err.message, 'warning');
+        } finally {
+          // Keep automatic writes paused after success until the new state is loaded.
+          if (!succeeded) importInProgress = false;
         }
       };
-      reader.readAsText(file);
+      reader.onerror = function () {
+        importInProgress = false;
+        showAlert('导入未完成：无法读取所选文件，未写入任何数据。', 'warning');
+      };
+      reader.onabort = function () { importInProgress = false; };
+      try { reader.readAsText(file); } catch (err) {
+        importInProgress = false;
+        showAlert('导入未完成：无法读取所选文件，未写入任何数据。', 'warning');
+      }
     }
 
     function openExportOverlay() {
